@@ -1,6 +1,12 @@
 extern crate rand;
 use rand::distributions::{IndependentSample, Range};
 //use rand::Rng;
+//use std::env;
+use std::fs;
+use std::fs::File;
+//use std::io::prelude::*;
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::process::Command;
 
 struct NAdjPair {
     noun: String,
@@ -8,54 +14,120 @@ struct NAdjPair {
     confidence: f32,
 }
 
+#[derive(Clone)]
+struct CoNLLEntry {
+    lemma: String,
+    pos: String,
+    head: u8,
+}
+
 fn main() {
+    let mut pairs: Vec<NAdjPair> = Vec::new();
+
+    let root_entry: CoNLLEntry = CoNLLEntry {
+        lemma: "[root]".to_string(),
+        pos: "[root]".to_string(),
+        head: 0u8,
+    };
+
+    {
+        // scope the file handles to close them when no longer needed
+        // open pair file
+        let pair_file: File = File::create("./pairs").expect("Error creating pair file");
+        let mut pair_file: BufWriter<_> = BufWriter::new(pair_file);
+
+        // open block text file
+        let text_file: File = File::create("./text").expect("Error creating block text file");
+        let mut text_file: BufWriter<_> = BufWriter::new(text_file);
+
+        // process corpus files one at a time
+        for path_container in fs::read_dir("./").unwrap() {
+            let path: String = path_container.unwrap().path().display().to_string();
+            if (&path).ends_with(".conll.gz") {
+                // unzip file
+                Command::new("sh")
+                    .arg("-c gzip -d")
+                    .arg(&path)
+                    .output()
+                    .expect("Error unzipping input file");
+
+                // open input file
+                let input: File = File::open(
+                    (&path).chars().take((&path).len() - 3).collect::<String>(),
+                ).expect("Error opening input file");
+                let mut sentence: Vec<CoNLLEntry> = Vec::new();
+                sentence.push(root_entry.clone()); // represents head, also makes indices easier
+
+                // read one sentence at a time
+                let mut input: BufReader<_> = BufReader::new(input);
+                let mut line: String = String::new();
+                let mut ct: usize;
+                while {
+                    ct = match input.read_line(&mut line) {
+                        Ok(n) => n,
+                        Err(..) => 0,
+                    };
+                    ct
+                } > 0
+                {
+                    // when a sentence boundary (empty line) is hit
+                    if ct == 1 {
+                        // find all adjective/noun pairs
+                        for entry in sentence.clone() {
+                            // for each adjective
+                            if entry.pos[..3].to_string().eq(&"ADJ".to_string()) {
+                                let pair: NAdjPair = NAdjPair {
+                                    noun: sentence[entry.head as usize].clone().lemma,
+                                    adj: entry.lemma,
+                                    confidence: 1.0f32,
+                                };
+
+                                // write pair to file for MI analysis
+                                let pair_string: String =
+                                    format!("{}\t{}\n", &(pair.noun), &(pair.adj));
+                                pair_file
+                                    .write_all(pair_string.as_bytes())
+                                    .expect("Error writing adjective/noun pair to file");
+
+                                // add pair to training data list
+                                pairs.push(pair);
+                            }
+                        }
+
+                        // write sentence to embedding training file
+                        let sentence_string: String = sentence
+                            .iter()
+                            .map(|e| e.lemma.clone().push_str(" "))
+                            .collect();
+                        text_file
+                            .write_all(sentence_string.as_bytes())
+                            .expect("Error writing sentence to file");
+
+                        // clear sentence (except root)
+                        sentence.resize(1, root_entry.clone()) // should never need to actually fill anything
+                    } else {
+                        // otherwise, extract the important CoNLL fields
+                        let fields: Vec<String> = line.split_whitespace()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>();
+                        sentence.push(CoNLLEntry {
+                            lemma: fields[2].clone(),
+                            pos: fields[4].clone(),
+                            head: match fields[6].parse::<u8>() {
+                                Ok(n) => n,
+                                Err(..) => 0,
+                            },
+                        });
+                    }
+                }
+            }
+        }
+    } // this closes the file handles
+
     // weights
     let mut rng = rand::thread_rng();
     let range = Range::new(0.0f32, 1.0f32);
     let mut w: (f32, f32) = (range.ind_sample(&mut rng), range.ind_sample(&mut rng));
-
-    // create pairs
-    let mut pairs: Vec<NAdjPair> = Vec::new();
-    pairs.push(NAdjPair {
-        noun: "door".to_string(),
-        adj: "green".to_string(),
-        confidence: 1.0f32,
-    });
-    pairs.push(NAdjPair {
-        noun: "door".to_string(),
-        adj: "angry".to_string(),
-        confidence: -1.0f32,
-    });
-    pairs.push(NAdjPair {
-        noun: "information".to_string(),
-        adj: "mutual".to_string(),
-        confidence: 1.0f32,
-    });
-    pairs.push(NAdjPair {
-        noun: "ideas".to_string(),
-        adj: "green".to_string(),
-        confidence: -1.0f32,
-    });
-    pairs.push(NAdjPair {
-        noun: "door".to_string(),
-        adj: "green".to_string(),
-        confidence: 1.0f32,
-    });
-    pairs.push(NAdjPair {
-        noun: "door".to_string(),
-        adj: "angry".to_string(),
-        confidence: -1.0f32,
-    });
-    pairs.push(NAdjPair {
-        noun: "information".to_string(),
-        adj: "mutual".to_string(),
-        confidence: 1.0f32,
-    });
-    pairs.push(NAdjPair {
-        noun: "ideas".to_string(),
-        adj: "green".to_string(),
-        confidence: -1.0f32,
-    });
 
     // for each pair
     for pair in pairs {
