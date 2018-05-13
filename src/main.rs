@@ -90,14 +90,18 @@ fn main() {
                                     .expect("Error writing adjective/noun pair to file");
 
                                 // add pair to training data list
-                                pairs.push(pair);
+                                //pairs.push(pair); // can't properly populate confidence yet
                             }
                         }
 
                         // write sentence to embedding training file
                         let sentence_string: String = sentence
                             .iter()
-                            .map(|e| e.lemma.clone().push_str(" "))
+                            .map(|e| {
+                                let mut str: String = e.lemma.clone();
+                                str.push_str(" ");
+                                str
+                            })
                             .collect();
                         text_file
                             .write_all(sentence_string.as_bytes())
@@ -124,6 +128,35 @@ fn main() {
         }
     } // this closes the file handles
 
+    // run MI utility and capture output
+    Command::new("compute-mi")
+        .arg("-m nsc ./pairs ./nmi")
+        .output()
+        .expect("Could not compute mutual information");
+    {
+        let pair_file: File = File::open("./nmi").expect("Could not open mutual information file");
+        let mut pair_file: BufReader<_> = BufReader::new(pair_file);
+        let mut line: String = String::new();
+        let mut ct: usize;
+        while {
+            ct = match pair_file.read_line(&mut line) {
+                Ok(n) => n,
+                Err(..) => 0,
+            };
+            ct
+        } > 0
+        {
+            let fields: Vec<String> = line.split_whitespace()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>();
+            pairs.push(NAdjPair {
+                noun: fields[0].clone(),
+                adj: fields[1].clone(),
+                confidence: fields[2].parse::<f32>().unwrap(),
+            });
+        }
+    }
+
     // weights
     let mut rng = rand::thread_rng();
     let range = Range::new(0.0f32, 1.0f32);
@@ -131,8 +164,7 @@ fn main() {
 
     // for each pair
     for pair in pairs {
-        // calculate mutual information
-        let x: f32 = mutual_information(&pair.noun, &pair.adj);
+        let x: f32 = pair.confidence;
 
         // dot product
         let predicted: f32 = w.0 + (x * w.1);
