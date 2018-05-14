@@ -50,10 +50,10 @@ fn main() {
             let path: String = path_container.unwrap().path().display().to_string();
             if (&path).ends_with(".conll.gz") {
                 // unzip file
-                Command::new("sh")
-                    .arg("-c gzip -d")
+                Command::new("gzip")
+                    .arg("-d")
                     .arg(&path)
-                    .output()
+                    .status()
                     .expect("Error unzipping input file");
 
                 // open input file
@@ -65,26 +65,20 @@ fn main() {
 
                 // read one sentence at a time
                 let mut input: BufReader<_> = BufReader::new(input);
-                let mut line: String = String::new();
-                let mut ct: usize;
-                while {
-                    ct = match input.read_line(&mut line) {
-                        Ok(n) => n,
-                        Err(..) => 0,
-                    };
-                    ct
-                } > 0
-                {
+                for line in input.lines().map(|l| match l {
+                    Ok(s) => s,
+                    Err(..) => String::new(),
+                }) {
                     // when a sentence boundary (empty line) is hit
-                    if ct == 1 {
+                    if line.len() == 0 {
                         // find all adjective/noun pairs
                         for entry in sentence.clone() {
                             // for each adjective
-                            if entry.pos[..3].to_string().eq(&"ADJ".to_string()) {
+                            if entry.pos.starts_with("ADJ") {
                                 let pair: NAdjPair = NAdjPair {
                                     noun: sentence[entry.head as usize].clone().lemma,
                                     adj: entry.lemma,
-                                    confidence: 1.0f32,
+                                    confidence: 1.0f32, // DUMMY
                                 };
 
                                 // write pair to file for MI analysis
@@ -93,9 +87,6 @@ fn main() {
                                 pair_file
                                     .write_all(pair_string.as_bytes())
                                     .expect("Error writing adjective/noun pair to file");
-
-                                // add pair to training data list
-                                //pairs.push(pair); // can't properly populate confidence yet
                             }
                         }
 
@@ -114,20 +105,29 @@ fn main() {
                             .expect("Error writing sentence to file");
 
                         // clear sentence (except root)
-                        sentence.resize(1, root_entry.clone()) // should never need to actually fill anything
+                        sentence.resize(1, root_entry.clone()); // should never need to actually fill anything
                     } else {
                         // otherwise, extract the important CoNLL fields
                         let fields: Vec<String> = line.split_whitespace()
                             .map(|s| s.to_string())
                             .collect::<Vec<_>>();
-                        sentence.push(CoNLLEntry {
-                            lemma: fields[2].clone(),
-                            pos: fields[4].clone(),
-                            head: match fields[6].parse::<u8>() {
-                                Ok(n) => n,
-                                Err(..) => 0,
-                            },
-                        });
+                        if fields.len() >= 7 {
+                            let entry: CoNLLEntry = CoNLLEntry {
+                                lemma: fields[2].clone(),
+                                pos: fields[3].clone(), // DEBUG: in actual corpus this is 4
+                                head: match fields[6].parse::<u8>() {
+                                    Ok(n) => n,
+                                    Err(..) => 0,
+                                },
+                            };
+                            sentence.push(entry);
+                        } else {
+                            // DEBUG
+                            println!("found short line:",);
+                            for field in fields {
+                                println!("\t{}", field);
+                            }
+                        }
                     }
                 }
             }
@@ -136,22 +136,20 @@ fn main() {
 
     // run MI utility and capture output
     Command::new("compute-mi")
-        .arg("-m nsc ./pairs ./nmi")
-        .output()
-        .expect("Could not compute mutual information");
+        .arg("-m")
+        .arg("nsc")
+        .arg("1,2")
+        .arg("./pairs")
+        .arg("./nmi")
+        .status()
+        .expect("Could not compute mutual information"); // do not capture output directly, use buffer since it will be massive
     {
         let pair_file: File = File::open("./nmi").expect("Could not open mutual information file");
-        let mut pair_file: BufReader<_> = BufReader::new(pair_file);
-        let mut line: String = String::new();
-        let mut ct: usize;
-        while {
-            ct = match pair_file.read_line(&mut line) {
-                Ok(n) => n,
-                Err(..) => 0,
-            };
-            ct
-        } > 0
-        {
+        let pair_file: BufReader<_> = BufReader::new(pair_file);
+        for line in pair_file.lines().map(|l| match l {
+            Ok(s) => s,
+            Err(..) => String::new(),
+        }) {
             // get positive examples
             let fields: Vec<String> = line.split_whitespace()
                 .map(|s| s.to_string())
@@ -193,7 +191,7 @@ fn main() {
             Some(v) => v.to_vec(),
             None => vec![0.0f32; embedding_model.embed_len()],
         });
-        x.append(&mut match embedding_model.embedding(&(pair.noun)){
+        x.append(&mut match embedding_model.embedding(&(pair.noun)) {
             Some(v) => v.to_vec(),
             None => vec![0.0f32; embedding_model.embed_len()],
         });
@@ -203,7 +201,12 @@ fn main() {
 
         // if miscategorized
         if (pair.confidence > 0.0f32) != (predicted > 0.0f32) {
-            print!("miscategorized! ");
+            // DEBUG
+            println!(
+                "miscategorized! {}, {} ({}): {}",
+                pair.noun, pair.adj, pair.confidence, predicted
+            );
+
             let error: f32 = (predicted - pair.confidence) * if pair.confidence > 0.0f32 {
                 1.0f32
             } else {
@@ -211,19 +214,19 @@ fn main() {
             };
             w[0] += error;
             // TODO parallelize this!
-            for i in 0..embedding_model.embed_len()
-            {
+            for i in 0..embedding_model.embed_len() {
                 w[i + 1] += error * x[i];
             }
         }
-
-        println!(
-            "{}, {} ({}): {}",
-            pair.noun, pair.adj, pair.confidence, predicted
-        );
     }
 
-    //println!("weights: [{}, {}]", w.0, w.1);
+    // DEBUG
+    print!("weights: [ ");
+    for weight in w {
+        print!("{} ", weight);
+    }
+    println!("]");
+
     // get test pairs
     // calc effectiveness on test pairs
 }
@@ -262,13 +265,11 @@ fn dot(mut u: &[f32], mut v: &[f32]) -> f32 {
     sums.extract(0) + sums.extract(1) + sums.extract(2) + sums.extract(3) + dot_slow(u, v)
 }
 
-fn dot_slow(u: &[f32], v: &[f32]) -> f32
-{
+fn dot_slow(u: &[f32], v: &[f32]) -> f32 {
     assert_eq!(u.len(), v.len());
 
     let mut sum: f32 = 0.0f32;
-    for i in 0..u.len()
-    {
+    for i in 0..u.len() {
         sum += u[i] * v[i];
     }
 
