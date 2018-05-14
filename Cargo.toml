@@ -5,3 +5,5 @@ authors = ["Peter Schoener <peter.c.schoener@gmail.com>"]
 
 [dependencies]
 rand = "0.3.0"
+rust2vec = "0.3"
+simd = "0.2"

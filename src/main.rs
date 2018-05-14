@@ -1,12 +1,17 @@
 extern crate rand;
 use rand::distributions::{IndependentSample, Range};
-//use rand::Rng;
-//use std::env;
+
+extern crate rust2vec;
+use rust2vec::{Embeddings, ReadWord2Vec};
+
 use std::fs;
 use std::fs::File;
-//use std::io::prelude::*;
 use std::io::{BufRead, BufReader, BufWriter, Write};
+
 use std::process::Command;
+
+extern crate simd;
+use simd::f32x4;
 
 struct NAdjPair {
     noun: String,
@@ -95,7 +100,7 @@ fn main() {
                         }
 
                         // write sentence to embedding training file
-                        let sentence_string: String = sentence
+                        let mut sentence_string: String = sentence
                             .iter()
                             .map(|e| {
                                 let mut str: String = e.lemma.clone();
@@ -103,6 +108,7 @@ fn main() {
                                 str
                             })
                             .collect();
+                        sentence_string.push_str("\n");
                         text_file
                             .write_all(sentence_string.as_bytes())
                             .expect("Error writing sentence to file");
@@ -146,6 +152,7 @@ fn main() {
             ct
         } > 0
         {
+            // get positive examples
             let fields: Vec<String> = line.split_whitespace()
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
@@ -157,17 +164,42 @@ fn main() {
         }
     }
 
+    // TODO generate negative examples
+
+    // train embeddings
+    Command::new("./train_embeddings.py")
+        .output()
+        .expect("Could not train embeddings");
+    let embedding_model: Embeddings;
+    {
+        let embedding_file: File =
+            File::open("./embeddings").expect("Could not open embedding file");
+        let mut embedding_file: BufReader<_> = BufReader::new(embedding_file);
+        embedding_model = Embeddings::read_word2vec_binary(&mut embedding_file)
+            .expect("Could not read embedding file");
+    }
+
     // weights
     let mut rng = rand::thread_rng();
     let range = Range::new(0.0f32, 1.0f32);
-    let mut w: (f32, f32) = (range.ind_sample(&mut rng), range.ind_sample(&mut rng));
+    //let mut w: Vec<f32> = Vec::with_capacity((embedding_model.embed_len() * 2) + 1);
+    let mut w: Vec<f32> = vec![range.ind_sample(&mut rng); (embedding_model.embed_len() * 2) + 1];
 
     // for each pair
     for pair in pairs {
-        let x: f32 = pair.confidence;
+        // concatenate embeddings to get feature vector
+        let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
+        x.append(&mut match embedding_model.embedding(&(pair.adj)) {
+            Some(v) => v.to_vec(),
+            None => vec![0.0f32; embedding_model.embed_len()],
+        });
+        x.append(&mut match embedding_model.embedding(&(pair.noun)){
+            Some(v) => v.to_vec(),
+            None => vec![0.0f32; embedding_model.embed_len()],
+        });
 
         // dot product
-        let predicted: f32 = w.0 + (x * w.1);
+        let predicted: f32 = w[0] + dot(&x, &w[1..]);
 
         // if miscategorized
         if (pair.confidence > 0.0f32) != (predicted > 0.0f32) {
@@ -177,8 +209,12 @@ fn main() {
             } else {
                 -1.0f32
             };
-            w.0 += error;
-            w.1 += error * x;
+            w[0] += error;
+            // TODO parallelize this!
+            for i in 0..embedding_model.embed_len()
+            {
+                w[i + 1] += error * x[i];
+            }
         }
 
         println!(
@@ -187,12 +223,12 @@ fn main() {
         );
     }
 
-    println!("weights: [{}, {}]", w.0, w.1);
+    //println!("weights: [{}, {}]", w.0, w.1);
     // get test pairs
     // calc effectiveness on test pairs
 }
 
-fn mutual_information(noun: &String, adjective: &String) -> f32 {
+/*fn mutual_information(noun: &String, adjective: &String) -> f32 {
     if *noun == "door".to_string() {
         return {
             if *adjective == "green".to_string() {
@@ -206,4 +242,35 @@ fn mutual_information(noun: &String, adjective: &String) -> f32 {
     }
 
     1.0f32
+}*/
+
+fn dot(mut u: &[f32], mut v: &[f32]) -> f32 {
+    assert_eq!(u.len(), v.len());
+
+    let mut sums = f32x4::splat(0.0);
+
+    while u.len() >= 4 {
+        let a = f32x4::load(u, 0);
+        let b = f32x4::load(v, 0);
+
+        sums = sums + a * b;
+
+        u = &u[4..];
+        v = &v[4..];
+    }
+
+    sums.extract(0) + sums.extract(1) + sums.extract(2) + sums.extract(3) + dot_slow(u, v)
+}
+
+fn dot_slow(u: &[f32], v: &[f32]) -> f32
+{
+    assert_eq!(u.len(), v.len());
+
+    let mut sum: f32 = 0.0f32;
+    for i in 0..u.len()
+    {
+        sum += u[i] * v[i];
+    }
+
+    sum
 }
