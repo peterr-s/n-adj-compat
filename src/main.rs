@@ -2,7 +2,7 @@ extern crate rand;
 use rand::distributions::{IndependentSample, Range};
 
 extern crate rust2vec;
-use rust2vec::{Embeddings, ReadWord2Vec};
+use rust2vec::{Embeddings, ReadText, ReadWord2Vec};
 
 use std::fs;
 use std::fs::File;
@@ -28,6 +28,7 @@ struct CoNLLEntry {
 
 fn main() {
     let mut pairs: Vec<NAdjPair> = Vec::new();
+    let mut rng = rand::thread_rng();
 
     let root_entry: CoNLLEntry = CoNLLEntry {
         lemma: "[root]".to_string(),
@@ -162,26 +163,39 @@ fn main() {
         }
     }
 
-    // TODO generate negative examples
+    // generate negative examples
+    for _ in 0..pairs.len() {
+        let range: Range<usize> = Range::new(0usize, pairs.len());
+        let noun: String = pairs[range.ind_sample(&mut rng)].noun.clone();
+        let adj: String = pairs[range.ind_sample(&mut rng)].adj.clone();
+        // TODO check that the examples do not exist
+        pairs.push(NAdjPair {
+            noun,
+            adj,
+            confidence: -1.0f32,
+        });
+    }
 
     // train embeddings
     Command::new("./train_embeddings.py")
         .output()
         .expect("Could not train embeddings");
-    let embedding_model: Embeddings;
+    let mut embedding_model: Embeddings;
     {
         let embedding_file: File =
             File::open("./embeddings").expect("Could not open embedding file");
         let mut embedding_file: BufReader<_> = BufReader::new(embedding_file);
-        embedding_model = Embeddings::read_word2vec_binary(&mut embedding_file)
-            .expect("Could not read embedding file");
+        embedding_model =
+            Embeddings::read_text(&mut embedding_file).expect("Could not read embedding file");
+
+        embedding_model.normalize();
     }
 
     // weights
-    let mut rng = rand::thread_rng();
-    let range = Range::new(0.0f32, 1.0f32);
-    //let mut w: Vec<f32> = Vec::with_capacity((embedding_model.embed_len() * 2) + 1);
-    let mut w: Vec<f32> = vec![range.ind_sample(&mut rng); (embedding_model.embed_len() * 2) + 1];
+    let mut w: Vec<f32> = {
+        let range: Range<f32> = Range::new(0.0f32, 1.0f32);
+        vec![range.ind_sample(&mut rng); (embedding_model.embed_len() * 2) + 1]
+    };
 
     // for each pair
     for pair in pairs {
@@ -200,12 +214,12 @@ fn main() {
         let predicted: f32 = w[0] + dot(&x, &w[1..]);
 
         // if miscategorized
-        if (pair.confidence > 0.0f32) != (predicted > 0.0f32) {
+        if !((pair.confidence > 0.0f32) ^ (predicted > 0.0f32)) {
             // DEBUG
-            println!(
+            /*println!(
                 "miscategorized! {}, {} ({}): {}",
                 pair.noun, pair.adj, pair.confidence, predicted
-            );
+            );*/
 
             let error: f32 = (predicted - pair.confidence) * if pair.confidence > 0.0f32 {
                 1.0f32
@@ -217,7 +231,13 @@ fn main() {
             for i in 0..embedding_model.embed_len() {
                 w[i + 1] += error * x[i];
             }
-        }
+
+            // DEBUG
+            /*print!("vector: ");
+            for val in x {
+                print!("{} ", val);
+            }
+            println!("]"); */        }
     }
 
     // DEBUG
