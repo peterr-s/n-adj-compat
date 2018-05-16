@@ -14,7 +14,7 @@ for line in input.read().split("\n") :
 input.close()
 del(input)
 
-model = gensim.models.Word2Vec(sentences, size = 300, window = 10, min_count = 1)
+model = gensim.models.Word2Vec(sentences, size = 300, window = 10, min_count = 1) # make min count 50 for final test
 
 # not really clear that binary True/False makes a difference, but the other module is forced to read as text so that's how we'll do it
 model.wv.save_word2vec_format("./temp-embeddings" binary=False)
