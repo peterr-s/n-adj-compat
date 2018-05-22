@@ -1,2 +1,9 @@
 target/
+corpus/
+_junk_data/
+embeddings
+nmi
+test
+text
+pairs
 
