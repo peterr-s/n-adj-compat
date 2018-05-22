@@ -117,7 +117,7 @@ fn main() {
                                 let pair: NAdjPair = NAdjPair {
                                     noun: sentence[entry.head as usize].clone().lemma,
                                     adj: entry.lemma,
-                                    confidence: 1.0f32, // DUMMY
+                                    confidence: 1.0f32, // dummy; will be overwritten
                                 };
 
                                 // write pair to file for MI analysis
@@ -173,12 +173,12 @@ fn main() {
                 Command::new("gzip")
                     .arg("-f")
                     .arg(&conll_name)
-                    .status()
-                    .expect("Error unzipping input file");
+                    .spawn()
+                    .expect("Error rezipping input file");
             }
 
             path_idx += 1;
-            print!("{} of {} files processed", path_idx, path_ct);
+            print!("{} of {} files processed\r", path_idx, path_ct);
         }
         println!("");
     } // this closes the file handles
