@@ -65,8 +65,8 @@ fn main() {
         head: 0u8,
     };
 
+    // scope the file handles to close them when no longer needed
     {
-        // scope the file handles to close them when no longer needed
         // open pair file
         let pair_file: File = File::create("./pairs").expect("Error creating pair file");
         let mut pair_file: BufWriter<_> = BufWriter::new(pair_file);
@@ -76,8 +76,17 @@ fn main() {
         let mut text_file: BufWriter<_> = BufWriter::new(text_file);
 
         // process corpus files one at a time
-        for path_container in fs::read_dir("./").unwrap() {
-            let path: String = path_container.unwrap().path().display().to_string();
+        let mut path_idx: usize = 0;
+        let path_ct: usize;
+        for path_container in {
+            let file_list: Vec<std::fs::DirEntry> = fs::read_dir("./corpus/")
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            path_ct = file_list.len();
+            file_list
+        } {
+            let path: String = path_container.path().display().to_string();
             if (&path).ends_with(".conll.gz") {
                 // unzip file
                 Command::new("gzip")
@@ -167,10 +176,15 @@ fn main() {
                     .status()
                     .expect("Error unzipping input file");
             }
+
+            path_idx += 1;
+            print!("{} of {} files processed", path_idx, path_ct);
         }
+        println!("");
     } // this closes the file handles
 
     // run MI utility and capture output
+    print!("Computing mutual information\r");
     Command::new("compute-mi")
         .arg("-m")
         .arg("nsc")
@@ -197,8 +211,10 @@ fn main() {
             });
         }
     }
+    println!("Computed mutual information ");
 
     // generate negative examples
+    print!("Generating negative examples\r");
     for _ in 0..pairs.len() {
         let range: Range<usize> = Range::new(0usize, pairs.len());
         let noun: String = pairs[range.ind_sample(&mut rng)].noun.clone();
@@ -210,8 +226,10 @@ fn main() {
             confidence: -1.0f32,
         });
     }
+    println!("Generated negative examples ");
 
     // train embeddings
+    print!("Training embeddings\r");
     Command::new("./train_embeddings.py")
         .output()
         .expect("Could not train embeddings");
@@ -225,6 +243,7 @@ fn main() {
 
         embedding_model.normalize();
     }
+    println!("Trained embeddings ");
 
     // weights
     let mut perceptron: Perceptron = Perceptron {
@@ -235,6 +254,9 @@ fn main() {
     };
 
     // for each pair
+    print!("Training perceptron\r");
+    let pair_ct: usize = pairs.len();
+    let mut pair_idx: usize = 0;
     for pair in pairs {
         // concatenate embeddings to get feature vector
         let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
@@ -248,7 +270,16 @@ fn main() {
         });
 
         perceptron.train(x, pair.confidence);
+
+        if {
+            pair_idx += 1;
+            pair_idx % 100
+        } == 0
+        {
+            print!("Training perceptron ({} of {})\r", pair_idx, pair_ct);
+        }
     }
+    println!("Trained perceptron ({} of {}) ", pair_idx, pair_ct);
 
     // get test pairs
     // calc effectiveness on test pairs
