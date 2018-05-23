@@ -254,32 +254,51 @@ fn main() {
     };
 
     // for each pair
-    print!("Training perceptron\r");
-    let pair_ct: usize = pairs.len();
-    let mut pair_idx: usize = 0;
-    for pair in pairs {
-        // concatenate embeddings to get feature vector
-        let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
-        x.append(&mut match embedding_model.embedding(&(pair.adj)) {
-            Some(v) => v.to_vec(),
-            None => vec![0.0f32; embedding_model.embed_len()],
-        });
-        x.append(&mut match embedding_model.embedding(&(pair.noun)) {
-            Some(v) => v.to_vec(),
-            None => vec![0.0f32; embedding_model.embed_len()],
-        });
+    {
+        // open block text file
+        let text_file: File = File::create("./text").expect("Error creating block text file");
+        let mut text_file: BufWriter<_> = BufWriter::new(text_file);
+        print!("Training perceptron\r");
+        let pair_ct: usize = pairs.len();
+        let mut pair_idx: usize = 0;
+        for pair in pairs {
+            // concatenate embeddings to get feature vector
+            let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
+            x.append(&mut match embedding_model.embedding(&(pair.adj)) {
+                Some(v) => v.to_vec(),
+                None => vec![0.0f32; embedding_model.embed_len()],
+            });
+            x.append(&mut match embedding_model.embedding(&(pair.noun)) {
+                Some(v) => v.to_vec(),
+                None => vec![0.0f32; embedding_model.embed_len()],
+            });
 
-        perceptron.train(x, pair.confidence);
+            perceptron.train(x, pair.confidence);
 
-        if {
-            pair_idx += 1;
-            pair_idx % 100
-        } == 0
-        {
-            print!("Training perceptron ({} of {})\r", pair_idx, pair_ct);
+            if {
+                pair_idx += 1;
+                pair_idx % 100
+            } == 0
+            {
+                print!("Training perceptron ({} of {})\r", pair_idx, pair_ct);
+                text_file
+                    .write_all(
+                        perceptron
+                            .w
+                            .clone()
+                            .iter()
+                            .map(|x| {
+                                let mut s: String = x.to_string();
+                                s.push_str(" ");
+                                s.as_bytes()
+                            })
+                            .collect()
+                    )
+                    .expect("Error writing sentence to file");
+            }
         }
+        println!("Trained perceptron ({} of {}) ", pair_idx, pair_ct);
     }
-    println!("Trained perceptron ({} of {}) ", pair_idx, pair_ct);
 
     // get test pairs
     // calc effectiveness on test pairs
