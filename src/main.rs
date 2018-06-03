@@ -10,6 +10,9 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 
 use std::process::Command;
 
+extern crate itertools;
+use itertools::Itertools;
+
 extern crate simd;
 use simd::f32x4;
 
@@ -259,18 +262,18 @@ fn main() {
         let text_file: File = File::create("./text").expect("Error creating block text file");
         let mut text_file: BufWriter<_> = BufWriter::new(text_file);
         print!("Training perceptron\r");
-        let pair_ct: usize = pairs.len();
+        let mut pair_ct: usize = pairs.len();
         let mut pair_idx: usize = 0;
         for pair in pairs {
             // concatenate embeddings to get feature vector
             let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
             x.append(&mut match embedding_model.embedding(&(pair.adj)) {
                 Some(v) => v.to_vec(),
-                None => vec![0.0f32; embedding_model.embed_len()],
+                None => {pair_ct -= 1; continue}, // do not train on unknown words
             });
             x.append(&mut match embedding_model.embedding(&(pair.noun)) {
                 Some(v) => v.to_vec(),
-                None => vec![0.0f32; embedding_model.embed_len()],
+                None => {pair_ct -= 1; continue},
             });
 
             perceptron.train(x, pair.confidence);
@@ -287,12 +290,9 @@ fn main() {
                             .w
                             .clone()
                             .iter()
-                            .map(|x| {
-                                let mut s: String = x.to_string();
-                                s.push_str(" ");
-                                s.as_bytes()
-                            })
-                            .collect()
+                            .map(|x| x.to_string())
+                            .join(" ")
+                            .as_bytes()
                     )
                     .expect("Error writing sentence to file");
             }
@@ -331,11 +331,11 @@ fn main() {
             let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
             x.append(&mut match embedding_model.embedding(&(pair.adj)) {
                 Some(v) => v.to_vec(),
-                None => vec![0.0f32; embedding_model.embed_len()],
+                None => {println!("Unknown adjective"); vec![0.0f32; embedding_model.embed_len()]},
             });
             x.append(&mut match embedding_model.embedding(&(pair.noun)) {
                 Some(v) => v.to_vec(),
-                None => vec![0.0f32; embedding_model.embed_len()],
+                None => {println!("Unknown noun"); vec![0.0f32; embedding_model.embed_len()]},
             });
 
             if (pair.confidence > 0.0f32) ^ (perceptron.predict(x) > 0.0f32) {
