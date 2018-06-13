@@ -22,9 +22,15 @@ model.wv.save_word2vec_format("./temp-embeddings", binary=False)
 # cut off first line because the other module doesn't like it
 temp_file = open("./temp-embeddings")
 model_file = open("./embeddings", "w")
+buf = ""
 for line in temp_file.read().split("\n")[1:] :
-    model_file.write(line)
-    model_file.write("\n")
+    buf += line
+    buf += "\n"
+#    model_file.write(line)
+#    model_file.write("\n")
+buf = buf.strip()
+model_file.write(buf)
+
 model_file.close()
 temp_file.close()
 
