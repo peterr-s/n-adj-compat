@@ -165,7 +165,7 @@ fn main() {
                             sentence.push(entry);
                         } else {
                             // DEBUG
-                            println!("found short line:",);
+                            println!("found short line:");
                             for field in fields {
                                 println!("\t{}", field);
                             }
@@ -269,11 +269,11 @@ fn main() {
             let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
             x.append(&mut match embedding_model.embedding(&(pair.adj)) {
                 Some(v) => v.to_vec(),
-                None => {pair_ct -= 1; continue}, // do not train on unknown words
+                None => { pair_ct -= 1; continue; }, // do not train on unknown words
             });
             x.append(&mut match embedding_model.embedding(&(pair.noun)) {
                 Some(v) => v.to_vec(),
-                None => {pair_ct -= 1; continue},
+                None => { pair_ct -= 1; continue; },
             });
 
             perceptron.train(x, pair.confidence);
