@@ -2,6 +2,7 @@ target/
 corpus/
 _junk_data/
 embeddings
+temp-embeddings
 nmi
 test
 text
