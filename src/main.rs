@@ -1,27 +1,32 @@
 extern crate rand;
 use rand::distributions::{IndependentSample, Range};
+use rand::{Rng, thread_rng};
 
 extern crate rust2vec;
 use rust2vec::{Embeddings, ReadText}; // TODO fix helper script so that this can use ReadWord2Vec instead of ReadText
 
 extern crate tensorflow;
-use tensorflow::Code;
+//use tensorflow::Code;
 use tensorflow::Graph;
-use tensorflow::ImportGraphDefinitions;
+use tensorflow::ImportGraphDefOptions;
 use tensorflow::Session;
 use tensorflow::SessionOptions;
-use tensorflow::Status;
+//use tensorflow::Status;
 use tensorflow::StepWithGraph;
 use tensorflow::Tensor;
+use tensorflow::Operation;
+use tensorflow::OutputToken;
 
 use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 
 use std::process::Command;
 
-extern crate itertools;
-use itertools::Itertools;
+use std::ops::Deref;
+
+/*extern crate itertools;
+use itertools::Itertools;*/
 
 extern crate simd;
 use simd::f32x4;
@@ -30,7 +35,7 @@ struct NAdjPair {
     noun: String,
     adj: String,
     confidence: f32,
-    embedding: Tensor<f32>,
+    embedding: Vec<f32>,
 }
 
 #[derive(Clone)]
@@ -103,6 +108,7 @@ fn main() {
                                     noun: sentence[entry.head as usize].clone().lemma,
                                     adj: entry.lemma,
                                     confidence: 1.0f32, // dummy; will be overwritten
+                                    embedding: vec![0.0f32; 600], // will also be overwritten
                                 };
 
                                 // write pair to file for MI analysis
@@ -239,18 +245,18 @@ fn main() {
         let adj: String = pairs[range.ind_sample(&mut rng)].adj.clone();
         // TODO check that the examples do not exist
         pairs.push(NAdjPair {
-            noun,
-            adj,
+            noun: noun.clone(),
+            adj: adj.clone(),
             confidence: -1.0f32,
             embedding: {
                 let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
-                vec.append(&mut match embedding_model.embedding(&(noun.clone())) {
+                vec.append(&mut match embedding_model.embedding(&(noun)) {
                     Some(v) => v.to_vec(),
                     None => {
                         continue;
                     } // do not train on unknown words
                 });
-                vec.append(&mut match embedding_model.embedding(&(adj.clone())) {
+                vec.append(&mut match embedding_model.embedding(&(adj)) {
                     Some(v) => v.to_vec(),
                     None => {
                         continue;
@@ -266,13 +272,13 @@ fn main() {
     let mut graph: Graph = Graph::new();
     let mut proto: Vec<u8> = Vec::new();
     {
-        let graph_file: File = File::open("graph.pb").expect("Could not open graph file");
+        let mut graph_file: File = File::open("graph.pb").expect("Could not open graph file");
         graph_file
             .read_to_end(&mut proto)
             .expect("Could not read graph file");
     }
     graph
-        .import_graph_def(&proto, &ImportGraphDefinitions::new())
+        .import_graph_def(&proto, &ImportGraphDefOptions::new())
         .expect("Could not import graph");
 
     // create session, connect to graph variables
@@ -306,7 +312,7 @@ fn main() {
 
     // shuffle training data
     // TODO verify this is a uniform shuffle (testing indicates it is but docs do not confirm)
-    thread_rng.shuffle(pairs);
+    thread_rng().shuffle(&mut pairs);
 
     // split training data into batches
     let batch_size: usize = 100;
@@ -315,23 +321,28 @@ fn main() {
     // train on 3/4 of data, validate on 1/4
     for batch in 0..batch_ct {
         // concatenate embeddings to get feature vector
-        let x_batch: Tensor = Tensor::new(&[2 * embedding_model.embed_len(), batch_size])
-            .with_values({
-                let vec: Vec<f32> =
-                    Vec::with_capacity(2 * embedding_model.embed_len() * batch_size);
-                for e in pairs[batch * batch_sz..(batch + 1) * batch_sz] {
-                    vec.append(e.embedding.as_slice());
-                }
-                vec.as_mut_slice()
-            });
-        // concatenate confidences to get output vector
-        let y_batch: Tensor = Tensor::new(&[1, batch_size]).with_values({
-            let mut vec: Vec<f32> = Vec::with_capacity(batch_size);
-            for e in pairs[batch * batch_sz..(batch + 1) * batch_sz] {
-                vec.push(e.confidence);
-            }
-            vec.as_mut_slice()
-        });
+	let x_batch: Tensor<f32>;
+	let y_batch: Tensor<f32>;
+	{
+		let mut vec: Vec<f32>;
+		x_batch = Tensor::new(&[2u64 * (embedding_model.embed_len() as u64), batch_size as u64])
+		    .with_values({
+			vec =
+			    Vec::with_capacity(2 * embedding_model.embed_len() * batch_size);
+			for e in pairs[batch * batch_size..(batch + 1) * batch_size].iter() {
+			    vec.append(&mut e.embedding.clone());
+			}
+			vec.as_mut_slice()
+		    }).unwrap();
+		// concatenate confidences to get output vector
+		y_batch = Tensor::new(&[1u64, batch_size as u64]).with_values({
+		    vec = Vec::with_capacity(batch_size);
+		    for e in pairs[batch * batch_size..(batch + 1) * batch_size].iter() {
+			vec.push(e.confidence);
+		    }
+		    vec.as_mut_slice()
+		}).unwrap();
+	}
 
         // train step
         if batch % 4 != 0 {
@@ -352,13 +363,13 @@ fn main() {
             session.run(&mut output_step).expect("Could not run validation step");
 
             let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
-            println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref());
+            println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref()[0]);
         }
     }
 
     // get test pairs
     // calc effectiveness on test pairs
-    let mut test_pairs: Vec<NAdjPair> = Vec::new();
+    /*let mut test_pairs: Vec<NAdjPair> = Vec::new();
     {
         let input: BufReader<File> =
             BufReader::new(File::open("./test").expect("Could not open test pair file"));
@@ -411,14 +422,14 @@ fn main() {
         total += 1;
     }
     println!("{} of {} test pairs correct", correct, total);
-
+*/
     // DEBUG
-    print!("weights: [ ");
+    /*print!("weights: [ ");
     for weight in perceptron.w {
         assert!(!weight.is_nan());
         print!("{} ", weight);
     }
-    println!("]");
+    println!("]");*/
 }
 
 fn dot(mut u: &[f32], mut v: &[f32]) -> f32 {
