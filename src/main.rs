@@ -4,6 +4,16 @@ use rand::distributions::{IndependentSample, Range};
 extern crate rust2vec;
 use rust2vec::{Embeddings, ReadText}; // TODO fix helper script so that this can use ReadWord2Vec instead of ReadText
 
+extern crate tensorflow;
+use tensorflow::Code;
+use tensorflow::Graph;
+use tensorflow::ImportGraphDefinitions;
+use tensorflow::Session;
+use tensorflow::SessionOptions;
+use tensorflow::Status;
+use tensorflow::StepWithGraph;
+use tensorflow::Tensor;
+
 use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -20,6 +30,7 @@ struct NAdjPair {
     noun: String,
     adj: String,
     confidence: f32,
+    embedding: Tensor<f32>,
 }
 
 #[derive(Clone)]
@@ -27,35 +38,6 @@ struct CoNLLEntry {
     lemma: String,
     pos: String,
     head: u8,
-}
-
-struct Perceptron {
-    w: Vec<f32>,
-}
-
-impl Perceptron {
-    fn predict(&mut self, x: Vec<f32>) -> f32 {
-        self.w[0] + dot(&x, &self.w[1..])
-    }
-
-    fn train(&mut self, x: Vec<f32>, y: f32) -> f32 {
-        // dot product
-        let predicted: f32 = self.w[0] + dot(&x, &self.w[1..]);
-
-        // if miscategorized
-        if (y > 0.0f32) ^ (predicted > 0.0f32) {
-            //  let error: f32 = (predicted - y) * if y > 0.0f32 { 1.0f32 } else { -1.0f32 };
-            let error: f32 = y - predicted;
-
-            self.w[0] += error;
-            // TODO parallelize this!
-            for i in 0..x.len() {
-                self.w[i + 1] += error * x[i];
-            }
-        }
-
-        predicted
-    }
 }
 
 fn main() {
@@ -186,6 +168,23 @@ fn main() {
         println!("");
     } // this closes the file handles
 
+    // train embeddings
+    print!("Training embeddings\r");
+    Command::new("./train_embeddings.py")
+        .output()
+        .expect("Could not train embeddings");
+    let mut embedding_model: Embeddings;
+    {
+        let embedding_file: File =
+            File::open("./embeddings").expect("Could not open embedding file");
+        let mut embedding_file: BufReader<_> = BufReader::new(embedding_file);
+        embedding_model =
+            Embeddings::read_text(&mut embedding_file).expect("Could not read embedding file");
+
+        embedding_model.normalize();
+    }
+    println!("Trained embeddings ");
+
     // run MI utility and capture output
     print!("Computing mutual information\r");
     Command::new("compute-mi")
@@ -211,6 +210,22 @@ fn main() {
                 noun: fields[0].clone(),
                 adj: fields[1].clone(),
                 confidence: fields[2].parse::<f32>().unwrap(),
+                embedding: {
+                    let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
+                    vec.append(&mut match embedding_model.embedding(&(fields[0].clone())) {
+                        Some(v) => v.to_vec(),
+                        None => {
+                            continue;
+                        } // do not train on unknown words
+                    });
+                    vec.append(&mut match embedding_model.embedding(&(fields[1].clone())) {
+                        Some(v) => v.to_vec(),
+                        None => {
+                            continue;
+                        }
+                    });
+                    vec
+                },
             });
         }
     }
@@ -227,77 +242,118 @@ fn main() {
             noun,
             adj,
             confidence: -1.0f32,
+            embedding: {
+                let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
+                vec.append(&mut match embedding_model.embedding(&(noun.clone())) {
+                    Some(v) => v.to_vec(),
+                    None => {
+                        continue;
+                    } // do not train on unknown words
+                });
+                vec.append(&mut match embedding_model.embedding(&(adj.clone())) {
+                    Some(v) => v.to_vec(),
+                    None => {
+                        continue;
+                    }
+                });
+                vec
+            },
         });
     }
     println!("Generated negative examples ");
 
-    // train embeddings
-    print!("Training embeddings\r");
-    Command::new("./train_embeddings.py")
-        .output()
-        .expect("Could not train embeddings");
-    let mut embedding_model: Embeddings;
+    // load graph
+    let mut graph: Graph = Graph::new();
+    let mut proto: Vec<u8> = Vec::new();
     {
-        let embedding_file: File =
-            File::open("./embeddings").expect("Could not open embedding file");
-        let mut embedding_file: BufReader<_> = BufReader::new(embedding_file);
-        embedding_model =
-            Embeddings::read_text(&mut embedding_file).expect("Could not read embedding file");
-
-        embedding_model.normalize();
+        let graph_file: File = File::open("graph.pb").expect("Could not open graph file");
+        graph_file
+            .read_to_end(&mut proto)
+            .expect("Could not read graph file");
     }
-    println!("Trained embeddings ");
+    graph
+        .import_graph_def(&proto, &ImportGraphDefinitions::new())
+        .expect("Could not import graph");
 
-    // weights
-    let mut perceptron: Perceptron = Perceptron {
-        w: {
-            let range: Range<f32> = Range::new(0.0f32, 1.0f32);
-            vec![range.ind_sample(&mut rng); (embedding_model.embed_len() * 2) + 1]
-        },
-    };
+    // create session, connect to graph variables
+    let mut session: Session =
+        Session::new(&SessionOptions::new(), &graph).expect("Could not create session");
+    let x: Operation = graph
+        .operation_by_name_required("x")
+        .expect("Could not find variable x in graph");
+    let y: Operation = graph
+        .operation_by_name_required("y")
+        .expect("Could not find variable y in graph");
+    let y_pred: Operation = graph
+        .operation_by_name_required("y_pred")
+        .expect("Could not find variable y_pred in graph");
+    let init: Operation = graph
+        .operation_by_name_required("init")
+        .expect("Could not find init operation in graph");
+    let train: Operation = graph
+        .operation_by_name_required("train")
+        .expect("Could not find train operation in graph");
+    let loss: Operation = graph
+        .operation_by_name_required("loss")
+        .expect("Could not find variable loss operation in graph");
 
-    // for each pair
-    {
-        // open block text file
-        let text_file: File = File::create("./text").expect("Error creating block text file");
-        let mut text_file: BufWriter<_> = BufWriter::new(text_file);
-        print!("Training perceptron\r");
-        let mut pair_ct: usize = pairs.len();
-        let mut pair_idx: usize = 0;
-        for pair in pairs {
-            // concatenate embeddings to get feature vector
-            let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
-            x.append(&mut match embedding_model.embedding(&(pair.adj)) {
-                Some(v) => v.to_vec(),
-                None => { pair_ct -= 1; continue; }, // do not train on unknown words
+    // initialize graph
+    let mut init_step: StepWithGraph = StepWithGraph::new();
+    init_step.add_target(&init);
+    session
+        .run(&mut init_step)
+        .expect("Could not initialize graph");
+
+    // shuffle training data
+    // TODO verify this is a uniform shuffle (testing indicates it is but docs do not confirm)
+    thread_rng.shuffle(pairs);
+
+    // split training data into batches
+    let batch_size: usize = 100;
+    let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
+
+    // train on 3/4 of data, validate on 1/4
+    for batch in 0..batch_ct {
+        // concatenate embeddings to get feature vector
+        let x_batch: Tensor = Tensor::new(&[2 * embedding_model.embed_len(), batch_size])
+            .with_values({
+                let vec: Vec<f32> =
+                    Vec::with_capacity(2 * embedding_model.embed_len() * batch_size);
+                for e in pairs[batch * batch_sz..(batch + 1) * batch_sz] {
+                    vec.append(e.embedding.as_slice());
+                }
+                vec.as_mut_slice()
             });
-            x.append(&mut match embedding_model.embedding(&(pair.noun)) {
-                Some(v) => v.to_vec(),
-                None => { pair_ct -= 1; continue; },
-            });
-
-            perceptron.train(x, pair.confidence);
-
-            if {
-                pair_idx += 1;
-                pair_idx % 100
-            } == 0
-            {
-                print!("Training perceptron ({} of {})\r", pair_idx, pair_ct);
-                text_file
-                    .write_all(
-                        perceptron
-                            .w
-                            .clone()
-                            .iter()
-                            .map(|x| x.to_string())
-                            .join(" ")
-                            .as_bytes()
-                    )
-                    .expect("Error writing sentence to file");
+        // concatenate confidences to get output vector
+        let y_batch: Tensor = Tensor::new(&[1, batch_size]).with_values({
+            let mut vec: Vec<f32> = Vec::with_capacity(batch_size);
+            for e in pairs[batch * batch_sz..(batch + 1) * batch_sz] {
+                vec.push(e.confidence);
             }
+            vec.as_mut_slice()
+        });
+
+        // train step
+        if batch % 4 != 0 {
+            let mut train_step: StepWithGraph = StepWithGraph::new();
+            train_step.add_input(&x, 0, &x_batch);
+            train_step.add_input(&y, 0, &y_batch);
+            train_step.add_target(&train);
+            
+            session.run(&mut train_step).expect("Could not run training step");
         }
-        println!("Trained perceptron ({} of {}) ", pair_idx, pair_ct);
+        // validation step
+        else {
+            let mut output_step: StepWithGraph = StepWithGraph::new();
+            output_step.add_input(&x, 0, &x_batch);
+            output_step.add_input(&y, 0, &y_batch);
+            let loss_idx: OutputToken = output_step.request_output(&loss, 0);
+            
+            session.run(&mut output_step).expect("Could not run validation step");
+
+            let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
+            println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref());
+        }
     }
 
     // get test pairs
@@ -331,11 +387,17 @@ fn main() {
             let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
             x.append(&mut match embedding_model.embedding(&(pair.adj)) {
                 Some(v) => v.to_vec(),
-                None => {println!("Unknown adjective"); vec![0.0f32; embedding_model.embed_len()]},
+                None => {
+                    println!("Unknown adjective");
+                    vec![0.0f32; embedding_model.embed_len()]
+                }
             });
             x.append(&mut match embedding_model.embedding(&(pair.noun)) {
                 Some(v) => v.to_vec(),
-                None => {println!("Unknown noun"); vec![0.0f32; embedding_model.embed_len()]},
+                None => {
+                    println!("Unknown noun");
+                    vec![0.0f32; embedding_model.embed_len()]
+                }
             });
 
             if (pair.confidence > 0.0f32) ^ (perceptron.predict(x) > 0.0f32) {
