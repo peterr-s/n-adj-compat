@@ -3,7 +3,7 @@
 import tensorflow as tf
 
 # hyperparameters
-batch_size = 100
+batch_size = 1000
 embedding_dim = 300
 hidden_sizes = [1000]
 
@@ -26,7 +26,7 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
 # output layer
 w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
 b = tf.get_variable("b_o", shape = [batch_size])
-y_pred = tf.sigmoid(tf.matmul(w, hidden, name = "y_pred") + b) # hard? tanh?
+y_pred = tf.tanh(tf.matmul(w, hidden, name = "y_pred") + b) # [hard] sigmoid? tanh?
 
 # phases are managed in the main module
 loss = tf.reduce_mean(tf.square(y_pred - y), name = "loss")

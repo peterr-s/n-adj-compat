@@ -130,7 +130,7 @@ fn main() {
     let mut graph: Graph = Graph::new();
     let mut proto: Vec<u8> = Vec::new();
     {
-        let mut graph_file: File = File::open("graph.pb").expect("Could not open graph file");
+        let mut graph_file: File = File::open("./graph.pb").expect("Could not open graph file");
         graph_file
             .read_to_end(&mut proto)
             .expect("Could not read graph file");
@@ -173,25 +173,40 @@ fn main() {
     thread_rng().shuffle(&mut pairs);
 
     // split training data into batches
-    let batch_size: usize = 100;
+    let batch_size: usize = 1000;
     let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
+    let x_width: usize = embedding_model.embed_len() * 2;
+    let x_size: usize = x_width * batch_size;
 
     // train on 3/4 of data, validate on 1/4
+    println!("Split data into {} batches", batch_ct);
     for batch in 0..batch_ct {
         // concatenate embeddings to get feature vector
         let x_batch: Tensor<f32>;
         let y_batch: Tensor<f32>;
         {
             let mut vec: Vec<f32>;
+            let mut transposed: Vec<f32>;
             x_batch = Tensor::new(&[
                 2u64 * (embedding_model.embed_len() as u64),
                 batch_size as u64,
             ]).with_values({
-                vec = Vec::with_capacity(2 * embedding_model.embed_len() * batch_size);
+                vec = Vec::with_capacity(x_size);
                 for e in pairs[batch * batch_size..(batch + 1) * batch_size].iter() {
                     vec.append(&mut e.embedding.clone());
                 }
-                vec.as_mut_slice()
+
+                transposed = Vec::with_capacity(x_size);
+                unsafe {
+                    transposed.set_len(x_size);
+                }
+                for e in 0..x_size {
+                    let row: usize = e / x_width;
+                    let col: usize = e % x_width;
+                    transposed[(col * batch_size) + row] = vec[e];
+                }
+
+                transposed.as_mut_slice()
             })
                 .unwrap();
             // concatenate confidences to get output vector
@@ -216,6 +231,8 @@ fn main() {
             session
                 .run(&mut train_step)
                 .expect("Could not run training step");
+
+        //    println!("[training]");
         }
         // validation step
         else {
@@ -232,6 +249,7 @@ fn main() {
             println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref()[0]);
         }
     }
+    println!("Trained on all data");
 
     // get test pairs
     // calc effectiveness on test pairs
