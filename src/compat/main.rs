@@ -55,6 +55,7 @@ fn main() {
         head: 0u8,
     };
 
+    /*
     // scope the file handles to close them when no longer needed
     {
         // open pair file
@@ -173,12 +174,14 @@ fn main() {
         }
         println!("");
     } // this closes the file handles
+    */
 
     // train embeddings
-    print!("Training embeddings\r");
+    /*print!("Training embeddings\r");
     Command::new("./train_embeddings.py")
         .output()
-        .expect("Could not train embeddings");
+        .expect("Could not train embeddings");*/
+    print!("Reading embeddings\r");
     let mut embedding_model: Embeddings;
     {
         let embedding_file: File =
@@ -189,11 +192,12 @@ fn main() {
 
         embedding_model.normalize();
     }
-    println!("Trained embeddings ");
+    //println!("Trained embeddings ");
+    println!("Read embeddings   ");
 
     // run MI utility and capture output
     print!("Computing mutual information\r");
-    Command::new("compute-mi")
+    /*Command::new("compute-mi")
         .arg("-m")
         .arg("nsc")
         .arg("1,2")
@@ -201,7 +205,7 @@ fn main() {
         .arg("./nmi")
         .status()
         .expect("Could not compute mutual information"); // do not capture output directly, use buffer since it will be massive
-    {
+    */{
         let pair_file: File = File::open("./nmi").expect("Could not open mutual information file");
         let pair_file: BufReader<_> = BufReader::new(pair_file);
         for line in pair_file.lines().map(|l| match l {

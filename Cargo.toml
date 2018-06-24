@@ -9,3 +9,11 @@ rand = "0.3.0"
 rust2vec = "0.3"
 simd = "0.2"
 itertools = "0.7.8"
+
+[[bin]]
+name = "compat"
+path = "src/compat/main.rs"
+
+[[bin]]
+name = "prep"
+path = "src/prep/main.rs"
