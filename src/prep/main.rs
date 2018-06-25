@@ -7,6 +7,8 @@ use std::process::Command;
 struct NAdjPair {
     noun: String,
     adj: String,
+    confidence: f32,
+    embedding: Vec<f32>,
 }
 
 #[derive(Clone)]
@@ -108,7 +110,7 @@ fn main() {
                     if fields.len() >= 7 {
                         let entry: CoNLLEntry = CoNLLEntry {
                             lemma: fields[2].clone(),
-                            pos: fields[3].clone(), // DEBUG: in actual corpus this is 4
+                            pos: fields[4].clone(),
                             head: match fields[6].parse::<u8>() {
                                 Ok(n) => n,
                                 Err(..) => 0,
