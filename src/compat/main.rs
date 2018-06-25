@@ -29,6 +29,7 @@ struct NAdjPair {
     noun: String,
     adj: String,
     confidence: f32,
+    valid: bool,
     embedding: Vec<f32>,
 }
 
@@ -67,13 +68,15 @@ fn main() {
             Err(..) => String::new(),
         }) {
             // get positive examples
-            let fields: Vec<String> = line.split_whitespace()
+            let fields: Vec<String> = line
+                .split_whitespace()
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
             pairs.push(NAdjPair {
                 noun: fields[0].clone(),
                 adj: fields[1].clone(),
                 confidence: fields[2].parse::<f32>().unwrap(),
+                valid: true,
                 embedding: {
                     let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
                     vec.append(&mut match embedding_model.embedding(&(fields[0].clone())) {
@@ -106,6 +109,7 @@ fn main() {
             noun: noun.clone(),
             adj: adj.clone(),
             confidence: -1.0f32,
+            valid: false,
             embedding: {
                 let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
                 vec.append(&mut match embedding_model.embedding(&(noun)) {
@@ -144,22 +148,50 @@ fn main() {
         Session::new(&SessionOptions::new(), &graph).expect("Could not create session");
     let x: Operation = graph
         .operation_by_name_required("x")
-        .expect("Could not find variable x in graph");
+        .expect("Could not find variable \"x\" in graph");
     let y: Operation = graph
         .operation_by_name_required("y")
-        .expect("Could not find variable y in graph");
+        .expect("Could not find variable \"y\" in graph");
     let y_pred: Operation = graph
         .operation_by_name_required("y_pred")
-        .expect("Could not find variable y_pred in graph");
+        .expect("Could not find variable \"y_pred\" in graph");
     let init: Operation = graph
         .operation_by_name_required("init")
         .expect("Could not find init operation in graph");
+    let mi_train: Operation = graph
+        .operation_by_name_required("mi_train")
+        .expect("Could not find mi_train operation in graph");
+    let mi_loss: Operation = graph
+        .operation_by_name_required("mi_loss")
+        .expect("Could not find variable \"mi_loss\" in graph");
     let train: Operation = graph
-        .operation_by_name_required("train")
+        .operation_by_name_required("perceptron/train")
         .expect("Could not find train operation in graph");
     let loss: Operation = graph
-        .operation_by_name_required("loss")
-        .expect("Could not find variable loss operation in graph");
+        .operation_by_name_required("perceptron/loss")
+        .expect("Could not find variable \"loss\" in graph");
+
+    // save and load operations
+    let save: Operation = graph
+        .operation_by_name_required("save/control_dependency")
+        .expect("Could not find save operation in graph");
+    let load: Operation = graph
+        .operation_by_name_required("save/restore_all")
+        .expect("Could not find load operation in graph");
+    let weight_path: Operation = graph
+        .operation_by_name_required("save/Const")
+        .expect("Could not find weight path in graph");
+    let weight_path_tensor: Tensor<String> = Tensor::from("./model.ckpt");
+
+    // define save step here for use anywhere
+    let mut save_step = StepWithGraph::new();
+    save_step.add_input(&weight_path, 0, &weight_path_tensor);
+    save_step.add_target(&save);
+
+    // define load step
+    let mut load_step = StepWithGraph::new();
+    load_step.add_input(&weight_path, 0, weight_path_tensor);
+    load_step.add_target(&load);
 
     // initialize graph
     let mut init_step: StepWithGraph = StepWithGraph::new();
@@ -177,16 +209,20 @@ fn main() {
     let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
     let x_width: usize = embedding_model.embed_len() * 2;
     let x_size: usize = x_width * batch_size;
+    let x_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
+    let final_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
 
-    // train on 3/4 of data, validate on 1/4
+    // training
     println!("Split data into {} batches", batch_ct);
     for batch in 0..batch_ct {
         // concatenate embeddings to get feature vector
         let x_batch: Tensor<f32>;
         let y_batch: Tensor<f32>;
+        let final_batch: Tensor<f32>;
         {
             let mut vec: Vec<f32>;
             let mut transposed: Vec<f32>;
+            let mut output: Vec<f32>;
             x_batch = Tensor::new(&[
                 2u64 * (embedding_model.embed_len() as u64),
                 batch_size as u64,
@@ -210,18 +246,71 @@ fn main() {
             })
                 .unwrap();
             // concatenate confidences to get output vector
+            output = Vec::with_capacity(2 * batch_size);
+            unsafe {
+                output.set_len(2 * batch_size);
+            }
             y_batch = Tensor::new(&[1u64, batch_size as u64])
                 .with_values({
                     vec = Vec::with_capacity(batch_size);
-                    for e in pairs[batch * batch_size..(batch + 1) * batch_size].iter() {
-                        vec.push(e.confidence);
+                    for i in batch * batch_size..(batch + 1) * batch_size {
+                        vec.push(pairs[i].confidence);
+                        match pairs[i].valid {
+                            true => {
+                                output[i] = 1;
+                                output[i + batch_size] = 0;
+                            }
+                            false => {
+                                output[i] = 0;
+                                output[i + batch_size] = 1;
+                            }
+                        };
                     }
                     vec.as_mut_slice()
                 })
                 .unwrap();
+            final_batch =
+                Tensor::new(&[2u64, batch_size as u64]).with_values(output.as_mut_slice());
         }
 
-        // train step
+        // train step (3/4 of all batches)
+        if batch % 4 != 0 {
+            let mut train_step: StepWithGraph = StepWithGraph::new();
+            train_step.add_input(&x, 0, &x_batch);
+            train_step.add_input(&y, 0, &y_batch);
+            train_step.add_target(&mi_train);
+
+            session
+                .run(&mut train_step)
+                .expect("Could not run training step");
+        }
+        // validation step (every 4th batch)
+        else {
+            let mut output_step: StepWithGraph = StepWithGraph::new();
+            output_step.add_input(&x, 0, &x_batch);
+            output_step.add_input(&y, 0, &y_batch);
+            let loss_idx: OutputToken = output_step.request_output(&mi_loss, 0);
+
+            session
+                .run(&mut output_step)
+                .expect("Could not run validation step");
+
+            let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
+            println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref()[0]);
+        }
+
+        // add x and y to batches for perceptron training
+        x_batches.push(x_batch);
+        final_batches.push(final_batch);
+    }
+    println!("Trained MI prediction on all data");
+
+    // train MI -> compat perceptron reusing batches
+    for batch in 0..batch_ct {
+        let x_batch: Tensor<f32> = x_batches.pop();
+        let y_batch: Tensor<f32> = final_batches.pop();
+
+        // train step (3/4 of all batches)
         if batch % 4 != 0 {
             let mut train_step: StepWithGraph = StepWithGraph::new();
             train_step.add_input(&x, 0, &x_batch);
@@ -231,10 +320,8 @@ fn main() {
             session
                 .run(&mut train_step)
                 .expect("Could not run training step");
-
-        //    println!("[training]");
         }
-        // validation step
+        // validation step (every 4th batch)
         else {
             let mut output_step: StepWithGraph = StepWithGraph::new();
             output_step.add_input(&x, 0, &x_batch);
@@ -249,7 +336,15 @@ fn main() {
             println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref()[0]);
         }
     }
-    println!("Trained on all data");
+    println!("Trained compatibility prediction on all data");
+
+    // save weights
+    session.run(&mut save_step).expect("Could not save weights");
+
+    // load weights
+    /*session
+        .run(&mut load_step)
+        .expect("Could not load weights");*/
 
     // get test pairs
     // calc effectiveness on test pairs
