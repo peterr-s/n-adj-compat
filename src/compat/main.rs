@@ -3,7 +3,7 @@ use rand::distributions::{IndependentSample, Range};
 use rand::{thread_rng, Rng};
 
 extern crate rust2vec;
-use rust2vec::{Embeddings, ReadText}; // TODO fix helper script so that this can use ReadWord2Vec instead of ReadText
+use rust2vec::{Embeddings, ReadWord2Vec};
 
 extern crate tensorflow;
 //use tensorflow::Code;
@@ -19,9 +19,7 @@ use tensorflow::Tensor;
 
 //use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader /*, BufWriter*/, Read /*, Write*/};
-
-//use std::process::Command;
+use std::io::{BufRead, BufReader, Read};
 
 use std::ops::Deref;
 
@@ -51,8 +49,8 @@ fn main() {
         let embedding_file: File =
             File::open("./embeddings").expect("Could not open embedding file");
         let mut embedding_file: BufReader<_> = BufReader::new(embedding_file);
-        embedding_model =
-            Embeddings::read_text(&mut embedding_file).expect("Could not read embedding file");
+        embedding_model = Embeddings::read_word2vec_binary(&mut embedding_file)
+            .expect("Could not read embedding file");
 
         embedding_model.normalize();
     }
@@ -68,8 +66,7 @@ fn main() {
             Err(..) => String::new(),
         }) {
             // get positive examples
-            let fields: Vec<String> = line
-                .split_whitespace()
+            let fields: Vec<String> = line.split_whitespace()
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
             pairs.push(NAdjPair {
@@ -149,12 +146,15 @@ fn main() {
     let x: Operation = graph
         .operation_by_name_required("x")
         .expect("Could not find variable \"x\" in graph");
+    let mi: Operation = graph
+        .operation_by_name_required("mi")
+        .expect("Could not find variable \"mi\" in graph");
     let y: Operation = graph
         .operation_by_name_required("y")
         .expect("Could not find variable \"y\" in graph");
-    let y_pred: Operation = graph
-        .operation_by_name_required("y_pred")
-        .expect("Could not find variable \"y_pred\" in graph");
+    /*let y_pred: Operation = graph
+        .operation_by_name_required("perceptron/y_pred")
+        .expect("Could not find variable \"y_pred\" in graph");*/
     let init: Operation = graph
         .operation_by_name_required("init")
         .expect("Could not find init operation in graph");
@@ -181,7 +181,7 @@ fn main() {
     let weight_path: Operation = graph
         .operation_by_name_required("save/Const")
         .expect("Could not find weight path in graph");
-    let weight_path_tensor: Tensor<String> = Tensor::from("./model.ckpt");
+    let weight_path_tensor: Tensor<String> = Tensor::from("./model.ckpt".to_string());
 
     // define save step here for use anywhere
     let mut save_step = StepWithGraph::new();
@@ -190,7 +190,7 @@ fn main() {
 
     // define load step
     let mut load_step = StepWithGraph::new();
-    load_step.add_input(&weight_path, 0, weight_path_tensor);
+    load_step.add_input(&weight_path, 0, &weight_path_tensor);
     load_step.add_target(&load);
 
     // initialize graph
@@ -209,8 +209,8 @@ fn main() {
     let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
     let x_width: usize = embedding_model.embed_len() * 2;
     let x_size: usize = x_width * batch_size;
-    let x_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
-    let final_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
+    let mut x_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
+    let mut final_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
 
     // training
     println!("Split data into {} batches", batch_ct);
@@ -254,30 +254,32 @@ fn main() {
                 .with_values({
                     vec = Vec::with_capacity(batch_size);
                     for i in batch * batch_size..(batch + 1) * batch_size {
+                        let j: usize = i % batch_size;
                         vec.push(pairs[i].confidence);
                         match pairs[i].valid {
                             true => {
-                                output[i] = 1;
-                                output[i + batch_size] = 0;
+                                output[j] = 1.0f32;
+                                output[j + batch_size] = 0.0f32;
                             }
                             false => {
-                                output[i] = 0;
-                                output[i + batch_size] = 1;
+                                output[j] = 0.0f32;
+                                output[j + batch_size] = 1.0f32;
                             }
                         };
                     }
                     vec.as_mut_slice()
                 })
                 .unwrap();
-            final_batch =
-                Tensor::new(&[2u64, batch_size as u64]).with_values(output.as_mut_slice());
+            final_batch = Tensor::new(&[2u64, batch_size as u64])
+                .with_values(output.as_mut_slice())
+                .unwrap();
         }
 
         // train step (3/4 of all batches)
         if batch % 4 != 0 {
             let mut train_step: StepWithGraph = StepWithGraph::new();
             train_step.add_input(&x, 0, &x_batch);
-            train_step.add_input(&y, 0, &y_batch);
+            train_step.add_input(&mi, 0, &y_batch);
             train_step.add_target(&mi_train);
 
             session
@@ -288,7 +290,7 @@ fn main() {
         else {
             let mut output_step: StepWithGraph = StepWithGraph::new();
             output_step.add_input(&x, 0, &x_batch);
-            output_step.add_input(&y, 0, &y_batch);
+            output_step.add_input(&mi, 0, &y_batch);
             let loss_idx: OutputToken = output_step.request_output(&mi_loss, 0);
 
             session
@@ -307,8 +309,8 @@ fn main() {
 
     // train MI -> compat perceptron reusing batches
     for batch in 0..batch_ct {
-        let x_batch: Tensor<f32> = x_batches.pop();
-        let y_batch: Tensor<f32> = final_batches.pop();
+        let x_batch: Tensor<f32> = x_batches.pop().unwrap();
+        let y_batch: Tensor<f32> = final_batches.pop().unwrap();
 
         // train step (3/4 of all batches)
         if batch % 4 != 0 {

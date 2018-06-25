@@ -17,3 +17,8 @@ path = "src/compat/main.rs"
 [[bin]]
 name = "prep"
 path = "src/prep/main.rs"
+
+[[bin]]
+name = "embed"
+path = "src/embed/main.rs"
+

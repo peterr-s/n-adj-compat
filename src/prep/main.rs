@@ -104,8 +104,7 @@ fn main() {
                     sentence.resize(1, root_entry.clone()); // should never need to actually fill anything
                 } else {
                     // otherwise, extract the important CoNLL fields
-                    let fields: Vec<String> = line
-                        .split_whitespace()
+                    let fields: Vec<String> = line.split_whitespace()
                         .map(|s| s.to_string())
                         .collect::<Vec<_>>();
                     if fields.len() >= 7 {
