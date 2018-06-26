@@ -170,6 +170,9 @@ fn main() {
     let loss: Operation = graph
         .operation_by_name_required("perceptron/loss")
         .expect("Could not find variable \"loss\" in graph");
+    let accuracy: Operation = graph
+        .operation_by_name_required("perceptron/accuracy")
+        .expect("Could not find variable \"accuracy\" in graph");
 
     // save and load operations
     let save: Operation = graph
@@ -298,7 +301,7 @@ fn main() {
                 .expect("Could not run validation step");
 
             let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
-            println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref()[0]);
+            println!("Epoch: {}\tLoss: {}", batch / 4, loss_val.deref()[0]);
         }
 
         // add x and y to batches for perceptron training
@@ -329,13 +332,15 @@ fn main() {
             output_step.add_input(&x, 0, &x_batch);
             output_step.add_input(&y, 0, &y_batch);
             let loss_idx: OutputToken = output_step.request_output(&loss, 0);
+            let accuracy_idx: OutputToken = output_step.request_output(&accuracy, 0);
 
             session
                 .run(&mut output_step)
                 .expect("Could not run validation step");
 
             let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
-            println!("Epoch: {}\t Loss: {}", batch / 4, loss_val.deref()[0]);
+            let accuracy_val: Tensor<f32> = output_step.take_output(accuracy_idx).unwrap();
+            println!("Epoch: {}\tLoss: {}  \tAccuracy: {}", batch / 4, loss_val.deref()[0], accuracy_val.deref()[0]);
         }
     }
     println!("Trained compatibility prediction on all data");

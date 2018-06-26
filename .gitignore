@@ -8,4 +8,5 @@ test
 text
 pairs
 *.swp
+model.ckpt.*
 
