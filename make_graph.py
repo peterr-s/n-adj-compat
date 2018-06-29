@@ -17,12 +17,12 @@ y = tf.placeholder(tf.float32, shape = [2, batch_size], name = "y");
 
 # create and link hidden layers
 hidden = x
-#for (i, hidden_size) in enumerate(hidden_sizes) :
-#    w = tf.get_variable("w_h_%i" % i, shape = [hidden_size, hidden.shape[0]])
-#    b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
+for (i, hidden_size) in enumerate(hidden_sizes) :
+    w = tf.get_variable("w_h_%i" % i, shape = [hidden_size, hidden.shape[0]])
+    b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
 
-#    hidden = tf.nn.relu(tf.matmul(w, hidden) + b) # leaky?
-#    hidden = tf.nn.dropout(hidden, 0.5) # dropout (5%? 10%?)
+    hidden = tf.nn.relu(tf.matmul(w, hidden) + b) # leaky?
+    hidden = tf.nn.dropout(hidden, 0.5) # dropout (5%? 10%?)
 
 # mi est layer
 #w = tf.get_variable("w_mi", shape = [1, hidden.shape[0]])

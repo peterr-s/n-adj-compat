@@ -9,4 +9,6 @@ text
 pairs
 *.swp
 model.ckpt.*
+misclassified
+nohup.*
 
