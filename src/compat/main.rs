@@ -6,20 +6,17 @@ extern crate rust2vec;
 use rust2vec::{Embeddings, ReadWord2Vec};
 
 extern crate tensorflow;
-//use tensorflow::Code;
 use tensorflow::Graph;
 use tensorflow::ImportGraphDefOptions;
-use tensorflow::Session;
-use tensorflow::SessionOptions;
-//use tensorflow::Status;
 use tensorflow::Operation;
 use tensorflow::OutputToken;
+use tensorflow::Session;
+use tensorflow::SessionOptions;
 use tensorflow::StepWithGraph;
 use tensorflow::Tensor;
 
-//use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 
 use std::ops::Deref;
 
@@ -152,9 +149,9 @@ fn main() {
     let y: Operation = graph
         .operation_by_name_required("y")
         .expect("Could not find variable \"y\" in graph");
-    /*let y_pred: Operation = graph
+    let y_pred: Operation = graph
         .operation_by_name_required("perceptron/y_pred")
-        .expect("Could not find variable \"y_pred\" in graph");*/
+        .expect("Could not find variable \"y_pred\" in graph");
     let init: Operation = graph
         .operation_by_name_required("init")
         .expect("Could not find init operation in graph");
@@ -311,36 +308,76 @@ fn main() {
     println!("Trained MI prediction on all data");
 
     // train MI -> compat perceptron reusing batches
-    for batch in 0..batch_ct {
-        let x_batch: Tensor<f32> = x_batches.pop().unwrap();
-        let y_batch: Tensor<f32> = final_batches.pop().unwrap();
+    {
+        // save misclassified examples
+        let misclassified_file: File =
+            File::create("./misclassified").expect("Could not create misclassification file");
+        let mut misclassified_file: BufWriter<_> = BufWriter::new(misclassified_file);
+        misclassified_file
+            .write_all(b"noun, adjective, pred true, pred false, true, false\n")
+            .expect("Could not write misclassification headers");
 
-        // train step (3/4 of all batches)
-        if batch % 4 != 0 {
-            let mut train_step: StepWithGraph = StepWithGraph::new();
-            train_step.add_input(&x, 0, &x_batch);
-            train_step.add_input(&y, 0, &y_batch);
-            train_step.add_target(&train);
+        for batch in 0..batch_ct {
+            let x_batch: Tensor<f32> = x_batches.pop().unwrap();
+            let y_batch: Tensor<f32> = final_batches.pop().unwrap();
 
-            session
-                .run(&mut train_step)
-                .expect("Could not run training step");
-        }
-        // validation step (every 4th batch)
-        else {
-            let mut output_step: StepWithGraph = StepWithGraph::new();
-            output_step.add_input(&x, 0, &x_batch);
-            output_step.add_input(&y, 0, &y_batch);
-            let loss_idx: OutputToken = output_step.request_output(&loss, 0);
-            let accuracy_idx: OutputToken = output_step.request_output(&accuracy, 0);
+            // train step (3/4 of all batches)
+            if batch % 4 != 0 {
+                let mut train_step: StepWithGraph = StepWithGraph::new();
+                train_step.add_input(&x, 0, &x_batch);
+                train_step.add_input(&y, 0, &y_batch);
+                train_step.add_target(&train);
 
-            session
-                .run(&mut output_step)
-                .expect("Could not run validation step");
+                session
+                    .run(&mut train_step)
+                    .expect("Could not run training step");
+            }
+            // validation step (every 4th batch)
+            else {
+                let mut output_step: StepWithGraph = StepWithGraph::new();
+                output_step.add_input(&x, 0, &x_batch);
+                output_step.add_input(&y, 0, &y_batch);
+                let y_pred_idx: OutputToken = output_step.request_output(&y_pred, 0);
+                let loss_idx: OutputToken = output_step.request_output(&loss, 0);
+                let accuracy_idx: OutputToken = output_step.request_output(&accuracy, 0);
 
-            let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
-            let accuracy_val: Tensor<f32> = output_step.take_output(accuracy_idx).unwrap();
-            println!("Epoch: {}\tLoss: {}  \tAccuracy: {}", batch / 4, loss_val.deref()[0], accuracy_val.deref()[0]);
+                session
+                    .run(&mut output_step)
+                    .expect("Could not run validation step");
+
+                let y_pred_val: Tensor<f32> = output_step.take_output(y_pred_idx).unwrap();
+                let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
+                let accuracy_val: Tensor<f32> = output_step.take_output(accuracy_idx).unwrap();
+                println!(
+                    "Epoch: {}\tLoss: {}  \tAccuracy: {}",
+                    batch / 4,
+                    loss_val.deref()[0],
+                    accuracy_val.deref()[0]
+                );
+
+                // get specific misclassifications and write to file
+                let y_vec: Vec<f32> = y_batch.to_vec();
+                let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
+                let pairs: &[NAdjPair] = &pairs[batch * batch_size..(batch + 1) * batch_size];
+                for i in 0..batch_size {
+                    if (y_pred_vec[i] > y_pred_vec[i + batch_size])
+                        != (y_vec[i] > y_vec[i + batch_size])
+                    {
+                        let misclassified_string: String = format!(
+                            "{}, {}, {}, {}, {}, {}\n",
+                            &(pairs[i].noun),
+                            &(pairs[i].adj),
+                            y_pred_vec[i],
+                            y_pred_vec[i + batch_size],
+                            y_vec[i],
+                            y_vec[i + batch_size]
+                        );
+                        misclassified_file
+                            .write_all(misclassified_string.as_bytes())
+                            .expect("Could not write misclassified pair to file");
+                    }
+                }
+            }
         }
     }
     println!("Trained compatibility prediction on all data");
