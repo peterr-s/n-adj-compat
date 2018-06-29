@@ -155,12 +155,12 @@ fn main() {
     let init: Operation = graph
         .operation_by_name_required("init")
         .expect("Could not find init operation in graph");
-    let mi_train: Operation = graph
+    /*let mi_train: Operation = graph
         .operation_by_name_required("mi_train")
         .expect("Could not find mi_train operation in graph");
     let mi_loss: Operation = graph
         .operation_by_name_required("mi_loss")
-        .expect("Could not find variable \"mi_loss\" in graph");
+        .expect("Could not find variable \"mi_loss\" in graph");*/
     let train: Operation = graph
         .operation_by_name_required("perceptron/train")
         .expect("Could not find train operation in graph");
@@ -276,7 +276,7 @@ fn main() {
         }
 
         // train step (3/4 of all batches)
-        if batch % 4 != 0 {
+        /*if batch % 4 != 0 {
             let mut train_step: StepWithGraph = StepWithGraph::new();
             train_step.add_input(&x, 0, &x_batch);
             train_step.add_input(&mi, 0, &y_batch);
@@ -299,7 +299,7 @@ fn main() {
 
             let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
             println!("Epoch: {}\tLoss: {}", batch / 4, loss_val.deref()[0]);
-        }
+        }*/
 
         // add x and y to batches for perceptron training
         x_batches.push(x_batch);
