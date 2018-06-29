@@ -17,26 +17,26 @@ y = tf.placeholder(tf.float32, shape = [2, batch_size], name = "y");
 
 # create and link hidden layers
 hidden = x
-for (i, hidden_size) in enumerate(hidden_sizes) :
-    w = tf.get_variable("w_h_%i" % i, shape = [hidden_size, hidden.shape[0]])
-    b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
+#for (i, hidden_size) in enumerate(hidden_sizes) :
+#    w = tf.get_variable("w_h_%i" % i, shape = [hidden_size, hidden.shape[0]])
+#    b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
 
-    hidden = tf.nn.relu(tf.matmul(w, hidden) + b) # leaky?
-    hidden = tf.nn.dropout(hidden, 0.95) # dropout (5%? 10%?)
+#    hidden = tf.nn.relu(tf.matmul(w, hidden) + b) # leaky?
+#    hidden = tf.nn.dropout(hidden, 0.5) # dropout (5%? 10%?)
 
 # mi est layer
-w = tf.get_variable("w_mi", shape = [1, hidden.shape[0]])
-b = tf.get_variable("b_mi", shape = [batch_size])
-mi_pred = tf.tanh(tf.matmul(w, hidden) + b, name = "mi_pred") # [hard] sigmoid?
+#w = tf.get_variable("w_mi", shape = [1, hidden.shape[0]])
+#b = tf.get_variable("b_mi", shape = [batch_size])
+#mi_pred = tf.tanh(tf.matmul(w, hidden) + b, name = "mi_pred") # [hard] sigmoid?
 
-mi_loss = tf.reduce_mean(tf.square(mi_pred - mi), name = "mi_loss")
-mi_train = tf.train.AdamOptimizer(0.01).minimize(mi_loss, name = "mi_train")
+#mi_loss = tf.reduce_mean(tf.square(mi_pred - mi), name = "mi_loss")
+#mi_train = tf.train.AdamOptimizer(0.01).minimize(mi_loss, name = "mi_train")
 
 # confidence (output) layer
 with tf.variable_scope("perceptron", reuse = tf.AUTO_REUSE) : # scope is required to explicitly permit reuse
-    w = tf.get_variable("w_o", shape = [y.shape[0], mi_pred.shape[0]])
+    w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
     b = tf.get_variable("b_o", shape = [batch_size])
-    y_pred = tf.sigmoid(tf.matmul(w, mi_pred) + b, name = "y_pred")
+    y_pred = tf.sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
 
     loss = tf.reduce_mean(tf.square(y_pred - y), name = "loss")
     accuracy = tf.reduce_mean(
@@ -45,7 +45,7 @@ with tf.variable_scope("perceptron", reuse = tf.AUTO_REUSE) : # scope is require
                 tf.float32), # use float here so that the average is float
             name = "accuracy")
     #train = tf.train.AdamOptimizer(0.005).minimize(loss, var_list = (tf.get_variable("w_o"), tf.get_variable("b_o")), name = "train")
-    train = tf.train.AdamOptimizer(0.005).minimize(loss, name = "train")
+    train = tf.train.AdamOptimizer(0.015).minimize(loss, name = "train")
 #normgd adagrad
 
 # initialization op
