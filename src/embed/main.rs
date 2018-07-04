@@ -21,10 +21,12 @@ fn main() {
         let mut embedding_file: BufReader<_> = BufReader::new(embedding_file);
         embedding_model =
             Embeddings::read_text(&mut embedding_file).expect("Could not read embedding file");
-
-        embedding_model.normalize();
     }
     println!("Read embeddings   ");
+
+    println!("Normalizing embeddings\r");
+    embedding_model.normalize();
+    println!("Normalized embeddings ");
 
     // write back as binary
     print!("Writing embeddings\r");

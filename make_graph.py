@@ -5,7 +5,7 @@ import tensorflow as tf
 # hyperparameters
 batch_size = 1000
 embedding_dim = 300
-hidden_sizes = [1000]
+hidden_sizes = [10000]
 
 # mitchell and lapata
 # papers on embeddings, compatibility in parsing
@@ -22,18 +22,9 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
     b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
 
     hidden = tf.nn.relu(tf.matmul(w, hidden) + b) # leaky?
-    hidden = tf.nn.dropout(hidden, 0.5) # dropout (5%? 10%?)
-
-# mi est layer
-#w = tf.get_variable("w_mi", shape = [1, hidden.shape[0]])
-#b = tf.get_variable("b_mi", shape = [batch_size])
-#mi_pred = tf.tanh(tf.matmul(w, hidden) + b, name = "mi_pred") # [hard] sigmoid?
-
-#mi_loss = tf.reduce_mean(tf.square(mi_pred - mi), name = "mi_loss")
-#mi_train = tf.train.AdamOptimizer(0.01).minimize(mi_loss, name = "mi_train")
+    hidden = tf.nn.dropout(hidden, 0.95) # dropout (5%? 10%?)
 
 # confidence (output) layer
-with tf.variable_scope("perceptron", reuse = tf.AUTO_REUSE) : # scope is required to explicitly permit reuse
     w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
     b = tf.get_variable("b_o", shape = [batch_size])
     y_pred = tf.sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
