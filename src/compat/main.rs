@@ -1,7 +1,3 @@
-extern crate rand;
-use rand::distributions::{IndependentSample, Range};
-use rand::{thread_rng, Rng};
-
 extern crate rust2vec;
 use rust2vec::{Embeddings, ReadWord2Vec};
 
@@ -15,6 +11,9 @@ use tensorflow::SessionOptions;
 use tensorflow::StepWithGraph;
 use tensorflow::Tensor;
 
+extern crate rand;
+use rand::{thread_rng, Rng};
+
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 
@@ -23,7 +22,6 @@ use std::ops::Deref;
 struct NAdjPair {
     noun: String,
     adj: String,
-    confidence: f32,
     valid: bool,
     embedding: Vec<f32>,
 }
@@ -37,7 +35,6 @@ struct CoNLLEntry {
 
 fn main() {
     let mut pairs: Vec<NAdjPair> = Vec::new();
-    let mut rng = rand::thread_rng();
 
     // read embeddings
     print!("Reading embeddings\r");
@@ -54,75 +51,11 @@ fn main() {
     println!("Read embeddings   ");
 
     // read MI values
-    print!("Computing mutual information\r");
-    {
-        let pair_file: File = File::open("./nmi").expect("Could not open mutual information file");
-        let pair_file: BufReader<_> = BufReader::new(pair_file);
-        for line in pair_file.lines().map(|l| match l {
-            Ok(s) => s,
-            Err(..) => String::new(),
-        }) {
-            // get positive examples
-            let fields: Vec<String> = line.split_whitespace()
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>();
-            pairs.push(NAdjPair {
-                noun: fields[0].clone(),
-                adj: fields[1].clone(),
-                confidence: fields[2].parse::<f32>().unwrap(),
-                valid: true,
-                embedding: {
-                    let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
-                    vec.append(&mut match embedding_model.embedding(&(fields[0].clone())) {
-                        Some(v) => v.to_vec(),
-                        None => {
-                            continue;
-                        } // do not train on unknown words
-                    });
-                    vec.append(&mut match embedding_model.embedding(&(fields[1].clone())) {
-                        Some(v) => v.to_vec(),
-                        None => {
-                            continue;
-                        }
-                    });
-                    vec
-                },
-            });
-        }
-    }
-    println!("Computed mutual information ");
-
-    // generate negative examples
-    print!("Generating negative examples\r");
-    for _ in 0..pairs.len() {
-        let range: Range<usize> = Range::new(0usize, pairs.len());
-        let noun: String = pairs[range.ind_sample(&mut rng)].noun.clone();
-        let adj: String = pairs[range.ind_sample(&mut rng)].adj.clone();
-        // TODO check that the examples do not exist
-        pairs.push(NAdjPair {
-            noun: noun.clone(),
-            adj: adj.clone(),
-            confidence: -1.0f32,
-            valid: false,
-            embedding: {
-                let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
-                vec.append(&mut match embedding_model.embedding(&(noun)) {
-                    Some(v) => v.to_vec(),
-                    None => {
-                        continue;
-                    } // do not train on unknown words
-                });
-                vec.append(&mut match embedding_model.embedding(&(adj)) {
-                    Some(v) => v.to_vec(),
-                    None => {
-                        continue;
-                    }
-                });
-                vec
-            },
-        });
-    }
-    println!("Generated negative examples ");
+    print!("Reading positive samples\r");
+    read_samples(&mut pairs, "./pos", true, &embedding_model);
+    println!("Reading negative samples\r");
+    read_samples(&mut pairs, "./neg", false, &embedding_model);
+    println!("Read all examples        ");
 
     // load graph
     let mut graph: Graph = Graph::new();
@@ -143,32 +76,23 @@ fn main() {
     let x: Operation = graph
         .operation_by_name_required("x")
         .expect("Could not find variable \"x\" in graph");
-    let mi: Operation = graph
-        .operation_by_name_required("mi")
-        .expect("Could not find variable \"mi\" in graph");
     let y: Operation = graph
         .operation_by_name_required("y")
         .expect("Could not find variable \"y\" in graph");
     let y_pred: Operation = graph
-        .operation_by_name_required("perceptron/y_pred")
+        .operation_by_name_required("y_pred")
         .expect("Could not find variable \"y_pred\" in graph");
     let init: Operation = graph
         .operation_by_name_required("init")
         .expect("Could not find init operation in graph");
-    /*let mi_train: Operation = graph
-        .operation_by_name_required("mi_train")
-        .expect("Could not find mi_train operation in graph");
-    let mi_loss: Operation = graph
-        .operation_by_name_required("mi_loss")
-        .expect("Could not find variable \"mi_loss\" in graph");*/
     let train: Operation = graph
-        .operation_by_name_required("perceptron/train")
+        .operation_by_name_required("train")
         .expect("Could not find train operation in graph");
     let loss: Operation = graph
-        .operation_by_name_required("perceptron/loss")
+        .operation_by_name_required("loss")
         .expect("Could not find variable \"loss\" in graph");
     let accuracy: Operation = graph
-        .operation_by_name_required("perceptron/accuracy")
+        .operation_by_name_required("accuracy")
         .expect("Could not find variable \"accuracy\" in graph");
 
     // save and load operations
@@ -200,181 +124,149 @@ fn main() {
         .run(&mut init_step)
         .expect("Could not initialize graph");
 
-    // shuffle training data
-    // TODO verify this is a uniform shuffle (testing indicates it is but docs do not confirm)
-    thread_rng().shuffle(&mut pairs);
-
     // split training data into batches
     let batch_size: usize = 1000;
+    let epoch_ct: usize = 3;
     let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
     let x_width: usize = embedding_model.embed_len() * 2;
     let x_size: usize = x_width * batch_size;
     let mut x_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
-    let mut final_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
+    let mut y_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
 
-    // training
-    println!("Split data into {} batches", batch_ct);
-    for batch in 0..batch_ct {
-        // concatenate embeddings to get feature vector
-        let x_batch: Tensor<f32>;
-        let y_batch: Tensor<f32>;
-        let final_batch: Tensor<f32>;
-        {
-            let mut vec: Vec<f32>;
-            let mut transposed: Vec<f32>;
-            let mut output: Vec<f32>;
-            x_batch = Tensor::new(&[
-                2u64 * (embedding_model.embed_len() as u64),
-                batch_size as u64,
-            ]).with_values({
-                vec = Vec::with_capacity(x_size);
-                for e in pairs[batch * batch_size..(batch + 1) * batch_size].iter() {
-                    vec.append(&mut e.embedding.clone());
-                }
+    // train each epoch on complete set
+    for epoch in 0..epoch_ct {
+        // shuffle training data
+        // TODO verify this is a uniform shuffle (testing indicates it is but docs do not confirm)
+        thread_rng().shuffle(&mut pairs);
 
-                transposed = Vec::with_capacity(x_size);
-                unsafe {
-                    transposed.set_len(x_size);
-                }
-                for e in 0..x_size {
-                    let row: usize = e / x_width;
-                    let col: usize = e % x_width;
-                    transposed[(col * batch_size) + row] = vec[e];
-                }
-
-                transposed.as_mut_slice()
-            })
-                .unwrap();
-            // concatenate confidences to get output vector
-            output = Vec::with_capacity(2 * batch_size);
-            unsafe {
-                output.set_len(2 * batch_size);
-            }
-            y_batch = Tensor::new(&[1u64, batch_size as u64])
-                .with_values({
-                    vec = Vec::with_capacity(batch_size);
-                    for i in batch * batch_size..(batch + 1) * batch_size {
-                        let j: usize = i % batch_size;
-                        vec.push(pairs[i].confidence);
-                        match pairs[i].valid {
-                            true => {
-                                output[j] = 1.0f32;
-                                output[j + batch_size] = 0.0f32;
-                            }
-                            false => {
-                                output[j] = 0.0f32;
-                                output[j + batch_size] = 1.0f32;
-                            }
-                        };
-                    }
-                    vec.as_mut_slice()
-                })
-                .unwrap();
-            final_batch = Tensor::new(&[2u64, batch_size as u64])
-                .with_values(output.as_mut_slice())
-                .unwrap();
-        }
-
-        // train step (3/4 of all batches)
-        /*if batch % 4 != 0 {
-            let mut train_step: StepWithGraph = StepWithGraph::new();
-            train_step.add_input(&x, 0, &x_batch);
-            train_step.add_input(&mi, 0, &y_batch);
-            train_step.add_target(&mi_train);
-
-            session
-                .run(&mut train_step)
-                .expect("Could not run training step");
-        }
-        // validation step (every 4th batch)
-        else {
-            let mut output_step: StepWithGraph = StepWithGraph::new();
-            output_step.add_input(&x, 0, &x_batch);
-            output_step.add_input(&mi, 0, &y_batch);
-            let loss_idx: OutputToken = output_step.request_output(&mi_loss, 0);
-
-            session
-                .run(&mut output_step)
-                .expect("Could not run validation step");
-
-            let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
-            println!("Epoch: {}\tLoss: {}", batch / 4, loss_val.deref()[0]);
-        }*/
-
-        // add x and y to batches for perceptron training
-        x_batches.push(x_batch);
-        final_batches.push(final_batch);
-    }
-    println!("Trained MI prediction on all data");
-
-    // train MI -> compat perceptron reusing batches
-    {
-        // save misclassified examples
-        let misclassified_file: File =
-            File::create("./misclassified").expect("Could not create misclassification file");
-        let mut misclassified_file: BufWriter<_> = BufWriter::new(misclassified_file);
-        misclassified_file
-            .write_all(b"noun, adjective, pred true, pred false, true, false\n")
-            .expect("Could not write misclassification headers");
-
+        // generate batches
+        println!("Split data into {} batches", batch_ct);
         for batch in 0..batch_ct {
-            let x_batch: Tensor<f32> = x_batches.pop().unwrap();
-            let y_batch: Tensor<f32> = final_batches.pop().unwrap();
+            // concatenate embeddings to get feature vector
+            let x_batch: Tensor<f32>;
+            let y_batch: Tensor<f32>;
+            {
+                let mut vec: Vec<f32>;
+                let mut transposed: Vec<f32>;
+                x_batch = Tensor::new(&[
+                    2u64 * (embedding_model.embed_len() as u64),
+                    batch_size as u64,
+                ]).with_values({
+                    vec = Vec::with_capacity(x_size);
+                    for e in pairs[batch * batch_size..(batch + 1) * batch_size].iter() {
+                        vec.append(&mut e.embedding.clone());
+                    }
 
-            // train step (3/4 of all batches)
-            if batch % 4 != 0 {
-                let mut train_step: StepWithGraph = StepWithGraph::new();
-                train_step.add_input(&x, 0, &x_batch);
-                train_step.add_input(&y, 0, &y_batch);
-                train_step.add_target(&train);
+                    transposed = Vec::with_capacity(x_size);
+                    unsafe {
+                        transposed.set_len(x_size);
+                    }
+                    for e in 0..x_size {
+                        let row: usize = e / x_width;
+                        let col: usize = e % x_width;
+                        transposed[(col * batch_size) + row] = vec[e];
+                    }
 
-                session
-                    .run(&mut train_step)
-                    .expect("Could not run training step");
+                    transposed.as_mut_slice()
+                })
+                    .unwrap();
+                // train output is a one-hot over {true, false}, run output is confidences as float
+                y_batch = Tensor::new(&[2u64, batch_size as u64])
+                    .with_values({
+                        vec = Vec::with_capacity(2 * batch_size);
+                        unsafe {
+                            vec.set_len(2 * batch_size);
+                        }
+                        for i in 0..batch_size {
+                            if pairs[i].valid {
+                                vec[i] = 1.0f32;
+                                vec[i + batch_size] = 0.0f32;
+                            } else {
+                                vec[i] = 0.0f32;
+                                vec[i + batch_size] = 1.0f32;
+                            }
+                        }
+                        vec.as_mut_slice()
+                    })
+                    .unwrap();
             }
-            // validation step (every 4th batch)
-            else {
-                let mut output_step: StepWithGraph = StepWithGraph::new();
-                output_step.add_input(&x, 0, &x_batch);
-                output_step.add_input(&y, 0, &y_batch);
-                let y_pred_idx: OutputToken = output_step.request_output(&y_pred, 0);
-                let loss_idx: OutputToken = output_step.request_output(&loss, 0);
-                let accuracy_idx: OutputToken = output_step.request_output(&accuracy, 0);
 
-                session
-                    .run(&mut output_step)
-                    .expect("Could not run validation step");
+            // add x and y to batches for perceptron training
+            x_batches.push(x_batch);
+            y_batches.push(y_batch);
+        }
+        println!("Trained MI prediction on all data");
 
-                let y_pred_val: Tensor<f32> = output_step.take_output(y_pred_idx).unwrap();
-                let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
-                let accuracy_val: Tensor<f32> = output_step.take_output(accuracy_idx).unwrap();
-                println!(
-                    "Epoch: {}\tLoss: {}  \tAccuracy: {}",
-                    batch / 4,
-                    loss_val.deref()[0],
-                    accuracy_val.deref()[0]
-                );
+        // train on all batches
+        {
+            // save misclassified examples
+            let misclassified_file: File =
+                File::create("./misclassified").expect("Could not create misclassification file");
+            let mut misclassified_file: BufWriter<_> = BufWriter::new(misclassified_file);
+            misclassified_file
+                .write_all(b"noun, adjective, pred true, pred false, true, false\n")
+                .expect("Could not write misclassification headers");
 
-                // get specific misclassifications and write to file
-                let y_vec: Vec<f32> = y_batch.to_vec();
-                let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
-                let pairs: &[NAdjPair] = &pairs[batch * batch_size..(batch + 1) * batch_size];
-                for i in 0..batch_size {
-                    if (y_pred_vec[i] > y_pred_vec[i + batch_size])
-                        != (y_vec[i] > y_vec[i + batch_size])
-                    {
-                        let misclassified_string: String = format!(
-                            "{}, {}, {}, {}, {}, {}\n",
-                            &(pairs[i].noun),
-                            &(pairs[i].adj),
-                            y_pred_vec[i],
-                            y_pred_vec[i + batch_size],
-                            y_vec[i],
-                            y_vec[i + batch_size]
-                        );
-                        misclassified_file
-                            .write_all(misclassified_string.as_bytes())
-                            .expect("Could not write misclassified pair to file");
+            for batch in 0..batch_ct {
+                let x_batch: Tensor<f32> = x_batches.pop().unwrap();
+                let y_batch: Tensor<f32> = y_batches.pop().unwrap();
+
+                // train step (3/4 of all batches)
+                if batch % 4 != 0 {
+                    let mut train_step: StepWithGraph = StepWithGraph::new();
+                    train_step.add_input(&x, 0, &x_batch);
+                    train_step.add_input(&y, 0, &y_batch);
+                    train_step.add_target(&train);
+
+                    session
+                        .run(&mut train_step)
+                        .expect("Could not run training step");
+                }
+                // validation step (every 4th batch)
+                else {
+                    let mut output_step: StepWithGraph = StepWithGraph::new();
+                    output_step.add_input(&x, 0, &x_batch);
+                    output_step.add_input(&y, 0, &y_batch);
+                    let y_pred_idx: OutputToken = output_step.request_output(&y_pred, 0);
+                    let loss_idx: OutputToken = output_step.request_output(&loss, 0);
+                    let accuracy_idx: OutputToken = output_step.request_output(&accuracy, 0);
+
+                    session
+                        .run(&mut output_step)
+                        .expect("Could not run validation step");
+
+                    let y_pred_val: Tensor<f32> = output_step.take_output(y_pred_idx).unwrap();
+                    let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
+                    let accuracy_val: Tensor<f32> = output_step.take_output(accuracy_idx).unwrap();
+                    println!(
+                        "Epoch: {}\t Batch: {}\tLoss: {}  \tAccuracy: {}",
+                        epoch,
+                        batch / 4,
+                        loss_val.deref()[0],
+                        accuracy_val.deref()[0]
+                    );
+
+                    // get specific misclassifications and write to file
+                    let y_vec: Vec<f32> = y_batch.to_vec();
+                    let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
+                    let pairs: &[NAdjPair] = &pairs[batch * batch_size..(batch + 1) * batch_size];
+                    for i in 0..batch_size {
+                        if (y_pred_vec[i] > y_pred_vec[i + batch_size])
+                            != (y_vec[i] > y_vec[i + batch_size])
+                        {
+                            let misclassified_string: String = format!(
+                                "{}, {}, {}, {}, {}, {}\n",
+                                &(pairs[i].noun),
+                                &(pairs[i].adj),
+                                y_pred_vec[i],
+                                y_pred_vec[i + batch_size],
+                                y_vec[i],
+                                y_vec[i + batch_size]
+                            );
+                            misclassified_file
+                                .write_all(misclassified_string.as_bytes())
+                                .expect("Could not write misclassified pair to file");
+                        }
                     }
                 }
             }
@@ -388,68 +280,39 @@ fn main() {
     // load weights
     /*session
         .run(&mut load_step)
-        .expect("Could not load weights");*/
+        .expect("Could not load weights");*/}
 
-    // get test pairs
-    // calc effectiveness on test pairs
-    /*let mut test_pairs: Vec<NAdjPair> = Vec::new();
-    {
-        let input: BufReader<File> =
-            BufReader::new(File::open("./test").expect("Could not open test pair file"));
-        for line in input.lines().map(|l| l.unwrap()) {
-            let fields: Vec<String> = line.split_whitespace()
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>();
-            if fields.len() >= 3 {
-                match fields[2].parse::<f32>() {
-                    Ok(n) => test_pairs.push(NAdjPair {
-                        noun: fields[0].clone(),
-                        adj: fields[1].clone(),
-                        confidence: n,
-                    }),
-                    Err(..) => (),
-                }
-            }
-        }
+fn read_samples(pairs: &mut Vec<NAdjPair>, path: &str, valid: bool, embedding_model: &Embeddings) {
+    let pair_file: File = File::open(path).expect("Could not open sample file");
+    let pair_file: BufReader<_> = BufReader::new(pair_file);
+    for line in pair_file.lines().map(|l| match l {
+        Ok(s) => s,
+        Err(..) => String::new(),
+    }) {
+        // get samples
+        let fields: Vec<String> = line.split_whitespace()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>();
+        pairs.push(NAdjPair {
+            noun: fields[0].clone(),
+            adj: fields[1].clone(),
+            valid,
+            embedding: {
+                let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
+                vec.append(&mut match embedding_model.embedding(&(fields[0].clone())) {
+                    Some(v) => v.to_vec(),
+                    None => {
+                        continue;
+                    } // do not train on unknown words
+                });
+                vec.append(&mut match embedding_model.embedding(&(fields[1].clone())) {
+                    Some(v) => v.to_vec(),
+                    None => {
+                        continue;
+                    }
+                });
+                vec
+            },
+        });
     }
-
-    let mut total: u32 = 0u32;
-    let mut correct: u32 = 0u32;
-    for pair in test_pairs {
-        correct += {
-            // concatenate embeddings to get feature vector
-            let mut x: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
-            x.append(&mut match embedding_model.embedding(&(pair.adj)) {
-                Some(v) => v.to_vec(),
-                None => {
-                    println!("Unknown adjective");
-                    vec![0.0f32; embedding_model.embed_len()]
-                }
-            });
-            x.append(&mut match embedding_model.embedding(&(pair.noun)) {
-                Some(v) => v.to_vec(),
-                None => {
-                    println!("Unknown noun");
-                    vec![0.0f32; embedding_model.embed_len()]
-                }
-            });
-
-            if (pair.confidence > 0.0f32) ^ (perceptron.predict(x) > 0.0f32) {
-                println!("miscategorized {} {}", pair.adj, pair.noun);
-                0
-            } else {
-                1
-            }
-        };
-
-        total += 1;
-    }
-    println!("{} of {} test pairs correct", correct, total);
-*/
-    // DEBUG
-    /*print!("weights: [ ");
-    for weight in perceptron.w {
-        assert!(!weight.is_nan());
-        print!("{} ", weight);
-    }
-    println!("]");*/}
+}

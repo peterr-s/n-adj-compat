@@ -9,6 +9,7 @@ rand = "0.3.0"
 rust2vec = "0.3"
 simd = "0.2"
 itertools = "0.7.8"
+bloom = "0.3.2"
 
 [[bin]]
 name = "compat"

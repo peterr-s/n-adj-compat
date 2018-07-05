@@ -3,16 +3,18 @@
 import gensim.models
 import sys
 
-path = "./text"
+sentences = []
+
 if len(sys.argv) > 1 :
     path = sys.argv[1]
 
-input = open(path);
-sentences = []
-for line in input.read().split("\n") :
-    sentences += [line.split()[1:]] # skip root
-input.close()
-del(input)
+    input = open(path);
+    for line in input.read().split("\n") :
+        sentences += [line.split()[1:]] # skip root
+    input.close()
+    del(input)
+else
+	sentences += [["__"]]
 
 model = gensim.models.Word2Vec(sentences, size = 300, window = 10, min_count = 50)
 
