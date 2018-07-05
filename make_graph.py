@@ -29,13 +29,12 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
     b = tf.get_variable("b_o", shape = [batch_size])
     y_pred = tf.sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
 
-    loss = tf.reduce_mean(tf.square(y_pred - y), name = "loss")
+    loss = tf.losses.log_loss(y, y_pred, name = "loss")
     accuracy = tf.reduce_mean(
             tf.cast(
                 tf.equal(tf.argmax(y, axis = 0), tf.argmax(y_pred, axis = 0)),
                 tf.float32), # use float here so that the average is float
             name = "accuracy")
-    #train = tf.train.AdamOptimizer(0.005).minimize(loss, var_list = (tf.get_variable("w_o"), tf.get_variable("b_o")), name = "train")
     train = tf.train.AdamOptimizer(0.015).minimize(loss, name = "train")
 #normgd adagrad
 
