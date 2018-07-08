@@ -14,6 +14,9 @@ use tensorflow::Tensor;
 extern crate rand;
 use rand::{thread_rng, Rng};
 
+extern crate serde_json;
+use serde_json::Value;
+
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 
@@ -34,14 +37,27 @@ struct CoNLLEntry {
 }
 
 fn main() {
-    let mut pairs: Vec<NAdjPair> = Vec::new();
+    // read settings
+    let settings: Value;
+    {
+        let mut settings_file: File =
+            File::open("./settings.json").expect("Could not open settings file");
+        let mut settings_str: String = String::new();
+        settings_file
+            .read_to_string(&mut settings_str)
+            .expect("Could not read settings file");
+        settings = serde_json::from_str(&settings_str).expect("Could not parse settings");
+    }
 
     // read embeddings
     print!("Reading embeddings\r");
     let mut embedding_model: Embeddings;
     {
-        let embedding_file: File =
-            File::open("./embeddings").expect("Could not open embedding file");
+        let embedding_file: File = File::open(
+            settings["embedding_file"]
+                .as_str()
+                .expect("Could not get embedding path from settings"),
+        ).expect("Could not open embedding file");
         let mut embedding_file: BufReader<_> = BufReader::new(embedding_file);
         embedding_model = Embeddings::read_word2vec_binary(&mut embedding_file)
             .expect("Could not read embedding file");
@@ -50,18 +66,45 @@ fn main() {
     }
     println!("Read embeddings   ");
 
-    // read MI values
-    print!("Reading positive samples\r");
-    read_samples(&mut pairs, "./pos", true, &embedding_model);
-    println!("Reading negative samples\r");
-    read_samples(&mut pairs, "./neg", false, &embedding_model);
-    println!("Read all examples        ");
+    // read pairs
+    let mut pairs: Vec<NAdjPair> = Vec::new();
+    print!("Reading samples\r");
+    for sample_file in settings["sample_files"]
+        .as_array()
+        .expect("Could not get sample files from settings")
+        .iter()
+    {
+        let valid: bool = sample_file["is_positive"]
+            .as_bool()
+            .expect("Could not get sample file validity from settings");
+        if valid {
+            print!("Reading positive samples\r");
+        } else {
+            print!("Reading negative samples\r");
+        }
+        read_samples(
+            &mut pairs,
+            sample_file["path"]
+                .as_str()
+                .expect("Could not get sample path from settings"),
+            valid,
+            &embedding_model,
+        );
+    }
+    /*read_samples(&mut pairs, "./pos", true, &embedding_model);
+    print!("Reading negative samples\r");
+    read_samples(&mut pairs, "./neg", false, &embedding_model);*/
+    println!("Read all samples        ");
 
     // load graph
     let mut graph: Graph = Graph::new();
     let mut proto: Vec<u8> = Vec::new();
     {
-        let mut graph_file: File = File::open("./graph.pb").expect("Could not open graph file");
+        let mut graph_file: File = File::open(
+            settings["graph_file"]
+                .as_str()
+                .expect("Could not get graph path from settings"),
+        ).expect("Could not open graph file");
         graph_file
             .read_to_end(&mut proto)
             .expect("Could not read graph file");
@@ -125,8 +168,24 @@ fn main() {
         .expect("Could not initialize graph");
 
     // split training data into batches
-    let batch_size: usize = 1000;
-    let epoch_ct: usize = 3;
+    let batch_size: usize = settings["batch_size"].as_u64().unwrap_or_else(|| {
+        // use _else for lazy eval, avoid printing err msg on success
+        let default_batch_size: u64 = 1000;
+        eprintln!(
+            "Could not find batch size in settings; defaulting to {}",
+            default_batch_size
+        );
+        default_batch_size
+    }) as usize;
+    let batch_size_f: f32 = batch_size as f32;
+    let epoch_ct: usize = settings["epoch_ct"].as_u64().unwrap_or_else(|| {
+        let default_epoch_ct: u64 = 3;
+        eprintln!(
+            "Could not find epoch ct in settings; defaulting to {}",
+            default_epoch_ct
+        );
+        default_epoch_ct
+    }) as usize;
     let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
     let x_width: usize = embedding_model.embed_len() * 2;
     let x_size: usize = x_width * batch_size;
@@ -140,7 +199,7 @@ fn main() {
         thread_rng().shuffle(&mut pairs);
 
         // generate batches
-        println!("Split data into {} batches", batch_ct);
+        print!("Splitting data into batches\r");
         for batch in 0..batch_ct {
             // concatenate embeddings to get feature vector
             let x_batch: Tensor<f32>;
@@ -195,7 +254,7 @@ fn main() {
             x_batches.push(x_batch);
             y_batches.push(y_batch);
         }
-        println!("Trained MI prediction on all data");
+        println!("Split data into {} batches  ", batch_ct);
 
         // train on all batches
         {
@@ -238,22 +297,17 @@ fn main() {
                     let y_pred_val: Tensor<f32> = output_step.take_output(y_pred_idx).unwrap();
                     let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
                     let accuracy_val: Tensor<f32> = output_step.take_output(accuracy_idx).unwrap();
-                    println!(
-                        "Epoch: {}\t Batch: {}\tLoss: {}  \tAccuracy: {}",
-                        epoch,
-                        batch / 4,
-                        loss_val.deref()[0],
-                        accuracy_val.deref()[0]
-                    );
 
                     // get specific misclassifications and write to file
                     let y_vec: Vec<f32> = y_batch.to_vec();
                     let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
                     let pairs: &[NAdjPair] = &pairs[batch * batch_size..(batch + 1) * batch_size];
+                    let mut false_pos: usize = 0usize;
+                    let mut false_neg: usize = 0usize;
                     for i in 0..batch_size {
-                        if (y_pred_vec[i] > y_pred_vec[i + batch_size])
-                            != (y_vec[i] > y_vec[i + batch_size])
-                        {
+                        let pred_valid: bool = y_pred_vec[i] > y_pred_vec[i + batch_size];
+                        let is_valid: bool = y_vec[i] > y_vec[i + batch_size];
+                        if pred_valid != is_valid {
                             let misclassified_string: String = format!(
                                 "{}, {}, {}, {}, {}, {}\n",
                                 &(pairs[i].noun),
@@ -266,11 +320,30 @@ fn main() {
                             misclassified_file
                                 .write_all(misclassified_string.as_bytes())
                                 .expect("Could not write misclassified pair to file");
+
+                            // y is column major with positive confidences first
+                            match is_valid {
+                                true => false_pos += 1, // type 1 error
+                                false => false_neg += 1, // type 2 error
+                                                         // _ => panic!("Bad y value!"),
+                            };
                         }
                     }
+
+                    // print batch results
+                    print!(
+                        "Epoch: {}\t Batch: {}\tLoss: {2:1.4}  \tAccuracy: {3:1.4} ({4:1.4} t1, {5:1.4} t2)\r",
+                        epoch,
+                        batch,
+                        loss_val.deref()[0],
+                        accuracy_val.deref()[0],
+                        (false_pos as f32) / batch_size_f,
+                        (false_neg as f32) / batch_size_f
+                    );
                 }
             }
         }
+        println!("");
     }
     println!("Trained compatibility prediction on all data");
 
@@ -290,7 +363,8 @@ fn read_samples(pairs: &mut Vec<NAdjPair>, path: &str, valid: bool, embedding_mo
         Err(..) => String::new(),
     }) {
         // get samples
-        let fields: Vec<String> = line.split_whitespace()
+        let fields: Vec<String> = line
+            .split_whitespace()
             .map(|s| s.to_string())
             .collect::<Vec<_>>();
         pairs.push(NAdjPair {

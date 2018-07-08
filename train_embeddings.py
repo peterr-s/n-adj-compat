@@ -2,6 +2,12 @@
 
 import gensim.models
 import sys
+import json
+
+# read settings file
+settings_file = open("settings.json", "r")
+settings = json.load(settings_file)
+settings_file.close()
 
 sentences = []
 
@@ -23,7 +29,7 @@ model.wv.save_word2vec_format("./temp-embeddings", binary=False)
 
 # cut off first line because the other module doesn't like it
 temp_file = open("./temp-embeddings")
-model_file = open("./embeddings", "w")
+model_file = open(settings["embedding_file"], "w")
 buf = ""
 for line in temp_file.read().split("\n")[1:] :
     buf += line

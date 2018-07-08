@@ -1,0 +1,28 @@
+{
+	"batch_size" : 1000,
+	"epoch_ct" : 10,
+	"hidden_sizes" : [3000],
+	
+	"embedding_dim" : 300,
+	"min_embed_ct" : 50,
+
+	"embedding_file" : "./embeddings",
+	"corpus_dir" : "./corpus/",
+	"text_file" : "./text",
+
+	"sample_files" : [
+		{
+			"path" : "./pos",
+			"is_positive" : true
+		},
+		{
+			"path" : "./neg",
+			"is_positive" : false
+		}
+	],
+	"neg_neighbors" : 4,
+
+	"graph_file" : "./graph.pb",
+	"weight_file" : "./model.ckpt",
+	"misclassified_file" : "./misclassified"
+}

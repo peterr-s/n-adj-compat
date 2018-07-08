@@ -1,11 +1,20 @@
 #!/usr/bin/python3
 
 import tensorflow as tf
+import json
+
+# read settings file
+settings_file = open("settings.json", "r")
+settings = json.load(settings_file)
+settings_file.close()
 
 # hyperparameters
-batch_size = 1000
-embedding_dim = 300
-hidden_sizes = [10000]
+#batch_size = 1000
+#embedding_dim = 300
+#hidden_sizes = [2000]
+batch_size = settings["batch_size"]
+embedding_dim = settings["embedding_dim"]
+hidden_sizes = settings["hidden_sizes"]
 
 # mitchell and lapata
 # papers on embeddings, compatibility in parsing
@@ -29,13 +38,14 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
     b = tf.get_variable("b_o", shape = [batch_size])
     y_pred = tf.sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
 
-    loss = tf.losses.log_loss(y, y_pred, name = "loss")
+    loss = tf.losses.log_loss(y, y_pred)
+    loss = tf.identity(loss, name = "loss")
     accuracy = tf.reduce_mean(
             tf.cast(
                 tf.equal(tf.argmax(y, axis = 0), tf.argmax(y_pred, axis = 0)),
                 tf.float32), # use float here so that the average is float
             name = "accuracy")
-    train = tf.train.AdamOptimizer(0.015).minimize(loss, name = "train")
+    train = tf.train.AdamOptimizer(0.05).minimize(loss, name = "train")
 #normgd adagrad
 
 # initialization op
@@ -46,5 +56,5 @@ saver = tf.train.Saver(tf.global_variables())
 
 # write graph to file
 definition = tf.Session().graph_def
-tf.train.write_graph(definition, ".", "graph.pb", as_text = False)
+tf.train.write_graph(definition, ".", settings["graph_file"], as_text = False)
 

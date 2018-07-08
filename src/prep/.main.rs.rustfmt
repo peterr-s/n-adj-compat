@@ -1,6 +1,6 @@
 use std::fs;
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 
 use std::process::Command;
 
@@ -54,9 +54,7 @@ fn main() {
     print!("Reading embeddings\r");
     let mut embedding_model: Embeddings;
     {
-        let embedding_path: &str = settings["embedding_file"]
-            .as_str()
-            .expect("Could not get embedding path from settings");
+        let embedding_path: &str = settings["embedding_file"].as_str().expect("Could not get embedding path from settings");
         let embedding_file: File = match File::open(embedding_path) {
             Ok(file) => file,
             Err(..) => {
@@ -79,21 +77,14 @@ fn main() {
     let mut pairs_pos: Vec<NAdjPair> = Vec::new();
     {
         // open block text file
-        let text_file: File = File::create(
-            settings["text_file"]
-                .as_str()
-                .expect("Could not get block text path from file"),
-        ).expect("Error creating block text file");
+        let text_file: File = File::create(settings["text_file"].as_str().expect("Could not get block text path from file")).expect("Error creating block text file");
         let mut text_file: BufWriter<_> = BufWriter::new(text_file);
         // process corpus files one at a time
         let mut path_idx: usize = 0;
         let path_ct: usize;
         for path_container in {
-            let file_list: Vec<std::fs::DirEntry> = fs::read_dir(
-                settings["corpus_dir"]
-                    .as_str()
-                    .expect("Could not get corpus directory from file"),
-            ).unwrap()
+            let file_list: Vec<std::fs::DirEntry> = fs::read_dir(settings["corpus_dir"].as_str().expect("Could not get corpus directory from file"))
+                .unwrap()
                 .map(|r| r.unwrap())
                 .collect();
             path_ct = file_list.len();
