@@ -31,18 +31,18 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
     hidden = tf.nn.dropout(hidden, settings["dropout_retention"]) # dropout (5%? 10%?)
 
 # confidence (output) layer
-    w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
-    b = tf.get_variable("b_o", shape = [batch_size])
-    y_pred = tf.sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
+w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
+b = tf.get_variable("b_o", shape = [batch_size])
+y_pred = tf.sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
 
-    loss = tf.losses.log_loss(y, y_pred)
-    loss = tf.identity(loss, name = "loss")
-    accuracy = tf.reduce_mean(
-            tf.cast(
-                tf.equal(tf.argmax(y, axis = 0), tf.argmax(y_pred, axis = 0)),
-                tf.float32), # use float here so that the average is float
-            name = "accuracy")
-    train = tf.train.AdamOptimizer(settings["learning_rate"]).minimize(loss, name = "train")
+loss = tf.losses.log_loss(y, y_pred)
+loss = tf.identity(loss, name = "loss")
+accuracy = tf.reduce_mean(
+        tf.cast(
+            tf.equal(tf.argmax(y, axis = 0), tf.argmax(y_pred, axis = 0)),
+            tf.float32), # use float here so that the average is float
+        name = "accuracy")
+train = tf.train.AdamOptimizer(settings["learning_rate"]).minimize(loss, name = "train")
 #normgd adagrad
 
 # initialization op
