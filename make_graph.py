@@ -9,9 +9,6 @@ settings = json.load(settings_file)
 settings_file.close()
 
 # hyperparameters
-#batch_size = 1000
-#embedding_dim = 300
-#hidden_sizes = [2000]
 batch_size = settings["batch_size"]
 embedding_dim = settings["embedding_dim"]
 hidden_sizes = settings["hidden_sizes"]
@@ -31,7 +28,7 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
     b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
 
     hidden = tf.nn.relu(tf.matmul(w, hidden) + b) # leaky?
-    hidden = tf.nn.dropout(hidden, 0.95) # dropout (5%? 10%?)
+    hidden = tf.nn.dropout(hidden, settings["dropout_retention"]) # dropout (5%? 10%?)
 
 # confidence (output) layer
     w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
@@ -45,7 +42,7 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
                 tf.equal(tf.argmax(y, axis = 0), tf.argmax(y_pred, axis = 0)),
                 tf.float32), # use float here so that the average is float
             name = "accuracy")
-    train = tf.train.AdamOptimizer(0.05).minimize(loss, name = "train")
+    train = tf.train.AdamOptimizer(settings["learning_rate"]).minimize(loss, name = "train")
 #normgd adagrad
 
 # initialization op

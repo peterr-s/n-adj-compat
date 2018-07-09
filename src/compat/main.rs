@@ -265,6 +265,7 @@ fn main() {
             misclassified_file
                 .write_all(b"noun, adjective, pred true, pred false, true, false\n")
                 .expect("Could not write misclassification headers");
+            let mut train_loss: Tensor<f32> = Tensor::new(&[1]).with_values(&[0.0f32]).unwrap();
 
             for batch in 0..batch_ct {
                 let x_batch: Tensor<f32> = x_batches.pop().unwrap();
@@ -276,27 +277,31 @@ fn main() {
                     train_step.add_input(&x, 0, &x_batch);
                     train_step.add_input(&y, 0, &y_batch);
                     train_step.add_target(&train);
+                    let loss_idx: OutputToken = train_step.request_output(&loss, 0);
 
                     session
                         .run(&mut train_step)
                         .expect("Could not run training step");
+
+                    train_loss = train_step.take_output(loss_idx).unwrap();
                 }
                 // validation step (every 4th batch)
                 else {
-                    let mut output_step: StepWithGraph = StepWithGraph::new();
-                    output_step.add_input(&x, 0, &x_batch);
-                    output_step.add_input(&y, 0, &y_batch);
-                    let y_pred_idx: OutputToken = output_step.request_output(&y_pred, 0);
-                    let loss_idx: OutputToken = output_step.request_output(&loss, 0);
-                    let accuracy_idx: OutputToken = output_step.request_output(&accuracy, 0);
+                    let mut validation_step: StepWithGraph = StepWithGraph::new();
+                    validation_step.add_input(&x, 0, &x_batch);
+                    validation_step.add_input(&y, 0, &y_batch);
+                    let y_pred_idx: OutputToken = validation_step.request_output(&y_pred, 0);
+                    let loss_idx: OutputToken = validation_step.request_output(&loss, 0);
+                    let accuracy_idx: OutputToken = validation_step.request_output(&accuracy, 0);
 
                     session
-                        .run(&mut output_step)
+                        .run(&mut validation_step)
                         .expect("Could not run validation step");
 
-                    let y_pred_val: Tensor<f32> = output_step.take_output(y_pred_idx).unwrap();
-                    let loss_val: Tensor<f32> = output_step.take_output(loss_idx).unwrap();
-                    let accuracy_val: Tensor<f32> = output_step.take_output(accuracy_idx).unwrap();
+                    let y_pred_val: Tensor<f32> = validation_step.take_output(y_pred_idx).unwrap();
+                    let loss_val: Tensor<f32> = validation_step.take_output(loss_idx).unwrap();
+                    let accuracy_val: Tensor<f32> =
+                        validation_step.take_output(accuracy_idx).unwrap();
 
                     // get specific misclassifications and write to file
                     let y_vec: Vec<f32> = y_batch.to_vec();
@@ -322,19 +327,19 @@ fn main() {
                                 .expect("Could not write misclassified pair to file");
 
                             // y is column major with positive confidences first
-                            match is_valid {
-                                true => false_pos += 1, // type 1 error
+                            match pred_valid {
+                                true => false_pos += 1,  // type 1 error
                                 false => false_neg += 1, // type 2 error
-                                                         // _ => panic!("Bad y value!"),
                             };
                         }
                     }
 
                     // print batch results
                     print!(
-                        "Epoch: {}\t Batch: {}\tLoss: {2:1.4}  \tAccuracy: {3:1.4} ({4:1.4} t1, {5:1.4} t2)\r",
+                        "Epoch: {}\t Batch: {}\tTrain loss: {2:1.4}\tVal loss: {3:1.4}\tAccuracy: {4:1.4} ({5:1.4} t1, {6:1.4} t2)\r",
                         epoch,
                         batch,
+                        train_loss.deref()[0],
                         loss_val.deref()[0],
                         accuracy_val.deref()[0],
                         (false_pos as f32) / batch_size_f,
