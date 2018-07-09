@@ -191,6 +191,12 @@ fn main() {
     let x_size: usize = x_width * batch_size;
     let mut x_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
     let mut y_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
+    let mut train_loss: Tensor<f32> = Tensor::new(&[1]).with_values(&[0.0f32]).unwrap();
+
+    // for saving misclassified samples
+    let misclassified_file: File =
+        File::create("./misclassified").expect("Could not create misclassification file");
+    let mut misclassified_file: BufWriter<_> = BufWriter::new(misclassified_file);
 
     // train each epoch on complete set
     for epoch in 0..epoch_ct {
@@ -198,8 +204,7 @@ fn main() {
         // TODO verify this is a uniform shuffle (testing indicates it is but docs do not confirm)
         thread_rng().shuffle(&mut pairs);
 
-        // generate batches
-        print!("Splitting data into batches\r");
+        println!("Training on {} batches  ", batch_ct);
         for batch in 0..batch_ct {
             // concatenate embeddings to get feature vector
             let x_batch: Tensor<f32>;
@@ -250,92 +255,75 @@ fn main() {
                     .unwrap();
             }
 
-            // add x and y to batches for perceptron training
-            x_batches.push(x_batch);
-            y_batches.push(y_batch);
-        }
-        println!("Split data into {} batches  ", batch_ct);
-
-        // train on all batches
-        {
             // save misclassified examples
-            let misclassified_file: File =
-                File::create("./misclassified").expect("Could not create misclassification file");
-            let mut misclassified_file: BufWriter<_> = BufWriter::new(misclassified_file);
             misclassified_file
                 .write_all(b"noun, adjective, pred true, pred false, true, false\n")
                 .expect("Could not write misclassification headers");
-            let mut train_loss: Tensor<f32> = Tensor::new(&[1]).with_values(&[0.0f32]).unwrap();
 
-            for batch in 0..batch_ct {
-                let x_batch: Tensor<f32> = x_batches.pop().unwrap();
-                let y_batch: Tensor<f32> = y_batches.pop().unwrap();
+            // train step (3/4 of all batches)
+            if batch % 4 != 0 {
+                let mut train_step: StepWithGraph = StepWithGraph::new();
+                train_step.add_input(&x, 0, &x_batch);
+                train_step.add_input(&y, 0, &y_batch);
+                train_step.add_target(&train);
+                let loss_idx: OutputToken = train_step.request_output(&loss, 0);
 
-                // train step (3/4 of all batches)
-                if batch % 4 != 0 {
-                    let mut train_step: StepWithGraph = StepWithGraph::new();
-                    train_step.add_input(&x, 0, &x_batch);
-                    train_step.add_input(&y, 0, &y_batch);
-                    train_step.add_target(&train);
-                    let loss_idx: OutputToken = train_step.request_output(&loss, 0);
+                session
+                    .run(&mut train_step)
+                    .expect("Could not run training step");
 
-                    session
-                        .run(&mut train_step)
-                        .expect("Could not run training step");
+                train_loss = train_step.take_output(loss_idx).unwrap();
+            }
+            // validation step (every 4th batch)
+            else {
+                let mut validation_step: StepWithGraph = StepWithGraph::new();
+                validation_step.add_input(&x, 0, &x_batch);
+                validation_step.add_input(&y, 0, &y_batch);
+                let y_pred_idx: OutputToken = validation_step.request_output(&y_pred, 0);
+                let loss_idx: OutputToken = validation_step.request_output(&loss, 0);
+                let accuracy_idx: OutputToken = validation_step.request_output(&accuracy, 0);
 
-                    train_loss = train_step.take_output(loss_idx).unwrap();
-                }
-                // validation step (every 4th batch)
-                else {
-                    let mut validation_step: StepWithGraph = StepWithGraph::new();
-                    validation_step.add_input(&x, 0, &x_batch);
-                    validation_step.add_input(&y, 0, &y_batch);
-                    let y_pred_idx: OutputToken = validation_step.request_output(&y_pred, 0);
-                    let loss_idx: OutputToken = validation_step.request_output(&loss, 0);
-                    let accuracy_idx: OutputToken = validation_step.request_output(&accuracy, 0);
+                session
+                    .run(&mut validation_step)
+                    .expect("Could not run validation step");
 
-                    session
-                        .run(&mut validation_step)
-                        .expect("Could not run validation step");
+                let y_pred_val: Tensor<f32> = validation_step.take_output(y_pred_idx).unwrap();
+                let loss_val: Tensor<f32> = validation_step.take_output(loss_idx).unwrap();
+                let accuracy_val: Tensor<f32> = validation_step.take_output(accuracy_idx).unwrap();
 
-                    let y_pred_val: Tensor<f32> = validation_step.take_output(y_pred_idx).unwrap();
-                    let loss_val: Tensor<f32> = validation_step.take_output(loss_idx).unwrap();
-                    let accuracy_val: Tensor<f32> =
-                        validation_step.take_output(accuracy_idx).unwrap();
+                // get specific misclassifications and write to file
+                let y_vec: Vec<f32> = y_batch.to_vec();
+                let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
+                let pairs: &[NAdjPair] = &pairs[batch * batch_size..(batch + 1) * batch_size];
+                let mut false_pos: usize = 0usize;
+                let mut false_neg: usize = 0usize;
+                for i in 0..batch_size {
+                    let pred_valid: bool = y_pred_vec[i] > y_pred_vec[i + batch_size];
+                    let is_valid: bool = y_vec[i] > y_vec[i + batch_size];
+                    if pred_valid != is_valid {
+                        let misclassified_string: String = format!(
+                            "{}, {}, {}, {}, {}, {}\n",
+                            &(pairs[i].noun),
+                            &(pairs[i].adj),
+                            y_pred_vec[i],
+                            y_pred_vec[i + batch_size],
+                            y_vec[i],
+                            y_vec[i + batch_size]
+                        );
+                        misclassified_file
+                            .write_all(misclassified_string.as_bytes())
+                            .expect("Could not write misclassified pair to file");
 
-                    // get specific misclassifications and write to file
-                    let y_vec: Vec<f32> = y_batch.to_vec();
-                    let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
-                    let pairs: &[NAdjPair] = &pairs[batch * batch_size..(batch + 1) * batch_size];
-                    let mut false_pos: usize = 0usize;
-                    let mut false_neg: usize = 0usize;
-                    for i in 0..batch_size {
-                        let pred_valid: bool = y_pred_vec[i] > y_pred_vec[i + batch_size];
-                        let is_valid: bool = y_vec[i] > y_vec[i + batch_size];
-                        if pred_valid != is_valid {
-                            let misclassified_string: String = format!(
-                                "{}, {}, {}, {}, {}, {}\n",
-                                &(pairs[i].noun),
-                                &(pairs[i].adj),
-                                y_pred_vec[i],
-                                y_pred_vec[i + batch_size],
-                                y_vec[i],
-                                y_vec[i + batch_size]
-                            );
-                            misclassified_file
-                                .write_all(misclassified_string.as_bytes())
-                                .expect("Could not write misclassified pair to file");
-
-                            // y is column major with positive confidences first
-                            match pred_valid {
-                                true => false_pos += 1,  // type 1 error
-                                false => false_neg += 1, // type 2 error
-                            };
-                        }
+                        // y is column major with positive confidences first
+                        match pred_valid {
+                            true => false_pos += 1,  // type 1 error
+                            false => false_neg += 1, // type 2 error
+                        };
                     }
+                }
 
-                    // print batch results
-                    print!(
+                // print batch results
+                print!(
                         "Epoch: {}\t Batch: {}\tTrain loss: {2:1.4}\tVal loss: {3:1.4}\tAccuracy: {4:1.4} ({5:1.4} t1, {6:1.4} t2)\r",
                         epoch,
                         batch,
@@ -345,7 +333,7 @@ fn main() {
                         (false_pos as f32) / batch_size_f,
                         (false_neg as f32) / batch_size_f
                     );
-                }
+                std::io::stdout().flush(); // stdout is not implicitly flushed on carriage return and this is not a bottleneck
             }
         }
         println!("");
