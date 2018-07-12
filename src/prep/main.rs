@@ -198,7 +198,21 @@ fn main() {
 
     let mut filter: BloomFilter = BloomFilter::with_rate(0.05f32, pairs_pos.len() as u32 * 20u32);
 
+    let mut rng = rand::thread_rng();
     {
+        // go through all combinations of similar words
+        let similar_max: usize = settings["neg_neighbors"]
+            .as_u64()
+            .expect("Could not get negative neighbor count from file") as usize;
+        /*let range: Range<usize> = Range::new(0usize, {
+            let mut sum: usize = 0usize;
+            for i in 0..similar_ct {
+                sum += i * i;
+            }
+            sum
+        });*/
+        let range: Range<usize> = Range::new(0usize, similar_max);
+
         print!("Processing positive samples\r");
 
         // open pair file
@@ -223,8 +237,8 @@ fn main() {
                     .write_all(pair_string.as_bytes())
                     .expect("Error writing adjective/noun pair to file");
 
-                // go through all combinations of similar words
-                let similar_ct: usize = 4usize;
+                let similar_ct: usize = range.ind_sample(&mut rng);
+
                 // removing here to use the vec directly; the map will be "updated" with the same value afterward anyway
                 let similar_nouns: Vec<WordSimilarity> = match neighbor_map.remove(&(pair.noun)) {
                     Some(v) => v,
@@ -270,7 +284,6 @@ fn main() {
     let target: usize = pairs_pos.len();
     let mut pairs_neg: Vec<NAdjPair> = Vec::with_capacity(target);
     print!("Generating negative samples\r");
-    let mut rng = rand::thread_rng();
     for ct in 0..target {
         let range: Range<usize> = Range::new(0usize, pairs_pos.len());
 

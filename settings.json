@@ -1,7 +1,9 @@
 {
-	"batch_size" : 1000,
-	"epoch_ct" : 10,
-	"hidden_sizes" : [3000],
+	"batch_size" : 10000,
+	"epoch_ct" : 3,
+	"hidden_sizes" : [3000, 3000],
+	"learning_rate" : 0.005,
+	"dropout_retention" : 0.8,
 	
 	"embedding_dim" : 300,
 	"min_embed_ct" : 50,
