@@ -18,8 +18,7 @@ hidden_sizes = settings["hidden_sizes"]
 
 #normalize batch
 x = tf.placeholder(tf.float32, shape = [2 * embedding_dim, batch_size], name = "x")
-mi = tf.placeholder(tf.float32, shape = [1, batch_size], name = "mi")
-y = tf.placeholder(tf.float32, shape = [2, batch_size], name = "y");
+y = tf.placeholder(tf.float32, shape = [1, batch_size], name = "y");
 
 # create and link hidden layers
 hidden = x
@@ -39,7 +38,7 @@ loss = tf.losses.log_loss(y, y_pred)
 loss = tf.identity(loss, name = "loss")
 accuracy = tf.reduce_mean(
         tf.cast(
-            tf.equal(tf.argmax(y, axis = 0), tf.argmax(y_pred, axis = 0)),
+            tf.equal(tf.greater(y, 0.5), tf.greater(y_pred, 0.5)), # broadcasting allows us to compare constants elementwise
             tf.float32), # use float here so that the average is float
         name = "accuracy")
 train = tf.train.AdamOptimizer(settings["learning_rate"]).minimize(loss, name = "train")

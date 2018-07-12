@@ -91,9 +91,6 @@ fn main() {
             &embedding_model,
         );
     }
-    /*read_samples(&mut pairs, "./pos", true, &embedding_model);
-    print!("Reading negative samples\r");
-    read_samples(&mut pairs, "./neg", false, &embedding_model);*/
     println!("Read all samples        ");
 
     // load graph
@@ -189,8 +186,6 @@ fn main() {
     let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
     let x_width: usize = embedding_model.embed_len() * 2;
     let x_size: usize = x_width * batch_size;
-    let mut x_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
-    let mut y_batches: Vec<Tensor<f32>> = Vec::with_capacity(batch_ct);
     let mut train_loss: Tensor<f32> = Tensor::new(&[1]).with_values(&[0.0f32]).unwrap();
 
     // for saving misclassified samples
@@ -234,22 +229,14 @@ fn main() {
                     transposed.as_mut_slice()
                 })
                     .unwrap();
-                // train output is a one-hot over {true, false}, run output is confidences as float
-                y_batch = Tensor::new(&[2u64, batch_size as u64])
+                // train output is binary compatibility, run output is confidences as float
+                y_batch = Tensor::new(&[1u64, batch_size as u64])
                     .with_values({
-                        vec = Vec::with_capacity(2 * batch_size);
-                        unsafe {
-                            vec.set_len(2 * batch_size);
-                        }
-                        for i in 0..batch_size {
-                            if pairs[i].valid {
-                                vec[i] = 1.0f32;
-                                vec[i + batch_size] = 0.0f32;
-                            } else {
-                                vec[i] = 0.0f32;
-                                vec[i + batch_size] = 1.0f32;
-                            }
-                        }
+                        // assign to vec first because of type inference in collect()
+                        vec = pairs[batch * batch_size..(batch + 1) * batch_size]
+                            .iter()
+                            .map(|e| if e.valid { 1.0f32 } else { 0.0f32 })
+                            .collect();
                         vec.as_mut_slice()
                     })
                     .unwrap();
@@ -257,7 +244,7 @@ fn main() {
 
             // save misclassified examples
             misclassified_file
-                .write_all(b"noun, adjective, pred true, pred false, true, false\n")
+                .write_all(b"noun, adjective, confidence, validity\n")
                 .expect("Could not write misclassification headers");
 
             // train step (3/4 of all batches)
@@ -298,17 +285,15 @@ fn main() {
                 let mut false_pos: usize = 0usize;
                 let mut false_neg: usize = 0usize;
                 for i in 0..batch_size {
-                    let pred_valid: bool = y_pred_vec[i] > y_pred_vec[i + batch_size];
-                    let is_valid: bool = y_vec[i] > y_vec[i + batch_size];
+                    let pred_valid: bool = y_pred_vec[i] > 0.5;
+                    let is_valid: bool = y_vec[i] > 0.5;
                     if pred_valid != is_valid {
                         let misclassified_string: String = format!(
-                            "{}, {}, {}, {}, {}, {}\n",
+                            "{}, {}, {}, {}\n",
                             &(pairs[i].noun),
                             &(pairs[i].adj),
                             y_pred_vec[i],
-                            y_pred_vec[i + batch_size],
                             y_vec[i],
-                            y_vec[i + batch_size]
                         );
                         misclassified_file
                             .write_all(misclassified_string.as_bytes())
@@ -333,7 +318,11 @@ fn main() {
                         (false_pos as f32) / batch_size_f,
                         (false_neg as f32) / batch_size_f
                     );
-                std::io::stdout().flush(); // stdout is not implicitly flushed on carriage return and this is not a bottleneck
+                match std::io::stdout().flush() // stdout is not implicitly flushed on carriage return and this is not a bottleneck
+                {
+                    Ok(_) => (),
+                    Err(_) => (),
+                };
             }
         }
         println!("");
