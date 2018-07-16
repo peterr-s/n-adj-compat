@@ -20,6 +20,8 @@ use serde_json::Value;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 
+use std::process::{Command, Child, Stdio};
+
 use std::ops::Deref;
 
 struct NAdjPair {
@@ -65,33 +67,6 @@ fn main() {
         embedding_model.normalize();
     }
     println!("Read embeddings   ");
-
-    // read pairs
-    let mut pairs: Vec<NAdjPair> = Vec::new();
-    print!("Reading samples\r");
-    for sample_file in settings["sample_files"]
-        .as_array()
-        .expect("Could not get sample files from settings")
-        .iter()
-    {
-        let valid: bool = sample_file["is_positive"]
-            .as_bool()
-            .expect("Could not get sample file validity from settings");
-        if valid {
-            print!("Reading positive samples\r");
-        } else {
-            print!("Reading negative samples\r");
-        }
-        read_samples(
-            &mut pairs,
-            sample_file["path"]
-                .as_str()
-                .expect("Could not get sample path from settings"),
-            valid,
-            &embedding_model,
-        );
-    }
-    println!("Read all samples        ");
 
     // load graph
     let mut graph: Graph = Graph::new();
@@ -183,7 +158,6 @@ fn main() {
         );
         default_epoch_ct
     }) as usize;
-    let batch_ct: usize = pairs.len() / batch_size; // we can probably afford to discard the last partial batch
     let x_width: usize = embedding_model.embed_len() * 2;
     let x_size: usize = x_width * batch_size;
     let mut train_loss: Tensor<f32> = Tensor::new(&[1]).with_values(&[0.0f32]).unwrap();
@@ -193,14 +167,137 @@ fn main() {
         File::create("./misclassified").expect("Could not create misclassification file");
     let mut misclassified_file: BufWriter<_> = BufWriter::new(misclassified_file);
 
+    // keep these as named variables to be iterated over on every reshuffle
+    let mut pos_files: Vec<&str> = Vec::new();
+    let mut neg_files: Vec<&str> = Vec::new();
+    for sample_file in settings["sample_files"]
+        .as_array()
+        .expect("Could not get sample files from settings")
+        .iter()
+    {
+        let path: &str = sample_file["path"]
+            .as_str()
+            .expect("Could not get sample file path from settings");
+        if sample_file["is_positive"]
+            .as_bool()
+            .expect("Could not get sample file validity from settings")
+        {
+            pos_files.push(path);
+        } else {
+            neg_files.push(path);
+        }
+    }
+
+    // get pipe buffer size from settings
+    /*let buf_size: usize = settings["buf_size"]
+        .as_u64()
+        .expect("Could not get buffer size from settings") as usize;*/
+    const BUF_SIZE: usize = 51200usize; // can't read from file and still declare as array
+
     // train each epoch on complete set
     for epoch in 0..epoch_ct {
-        // shuffle training data
-        // TODO verify this is a uniform shuffle (testing indicates it is but docs do not confirm)
-        thread_rng().shuffle(&mut pairs);
+        // shuffle negative and positive samples separately so they are implicitly annotated
+        let mut cat: Child = Command::new("cat")
+            .args(&neg_files)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Could not concatenate negative sample files");
+        let mut shuf: Child = Command::new("shuf")
+            .arg("-o")
+            .arg("./neg_shuffled")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("Could not shuffle negative samples");
+        if let Some(ref mut cat_out) = cat.stdout {
+            if let Some(ref mut shuf_in) = shuf.stdin {
+                /*let mut buf: [u8; BUF_SIZE] = [0u8; BUF_SIZE]; // use 10 kB buffer
+                while 0 < cat_out.read(&mut buf).expect("Could not read from negative cat output") {
+                    shuf_in.write(&mut buf).expect("Could not write to negative shuf input");
+                }*/
+                
+                // write the remainder of the file after the last full chunk
+                let mut buf: Vec<u8> = Vec::with_capacity(BUF_SIZE);
+                cat_out.read_to_end(&mut buf).expect("Could not read end of negative cat output");
+                shuf_in.write_all(&mut buf).expect("Could not write end of negative shuf input");
+            }
+        }
+        shuf.wait().expect("Could not finish shuffling negative samples");
+        cat = Command::new("cat")
+            .args(&pos_files)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Could not concatenate positive sample files");
+        shuf = Command::new("shuf")
+            .arg("-o")
+            .arg("./pos_shuffled")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("Could not shuffle positive samples");
+        if let Some(ref mut cat_out) = cat.stdout {
+            if let Some(ref mut shuf_in) = shuf.stdin {
+                /*let mut buf: [u8; BUF_SIZE] = [0u8; BUF_SIZE]; // use 10 kB buffer
+                while 0 < cat_out.read(&mut buf).expect("Could not read from negative cat output") {
+                    shuf_in.write(&mut buf).expect("Could not write to negative shuf input");
+                }*/
+                
+                // write the remainder of the file after the last full chunk
+                let mut buf: Vec<u8> = Vec::with_capacity(BUF_SIZE);
+                cat_out.read_to_end(&mut buf).expect("Could not read end of positive cat output");
+                shuf_in.write_all(&mut buf).expect("Could not write end of positive shuf input");
+            }
+        }
+        shuf.wait().expect("Could not finish shuffling positive samples");
 
-        println!("Training on {} batches  ", batch_ct);
-        for batch in 0..batch_ct {
+        // create iterators over the shuffled data so it can be read on the fly
+        let neg_file: File =
+            File::open("./neg_shuffled").expect("Could not open shuffled negatives");
+        let neg_file: BufReader<File> = BufReader::new(neg_file);
+        let mut neg_iter = neg_file
+            .lines()
+            .map(|l| l.expect("Error reading negative sample"));
+        let pos_file: File =
+            File::open("./pos_shuffled").expect("Could not open shuffled positives");
+        let pos_file: BufReader<File> = BufReader::new(pos_file);
+        let mut pos_iter = pos_file
+            .lines()
+            .map(|l| l.expect("Error reading positive sample"));
+
+        // while there are enough samples left to fill a batch
+        let mut batch: usize = 0usize;
+        let mut pairs: Vec<NAdjPair>;
+        while {
+            batch += 1;
+
+            pairs = Vec::with_capacity(batch_size);
+            read_samples(
+                &mut pairs,
+                &mut neg_iter,
+                false,
+                &embedding_model,
+                batch_size / 2,
+            );
+            read_samples(
+                &mut pairs,
+                &mut pos_iter,
+                true,
+                &embedding_model,
+                batch_size,
+            );
+            if pairs.len() < batch_size {
+                read_samples(
+                    &mut pairs,
+                    &mut neg_iter,
+                    false,
+                    &embedding_model,
+                    batch_size,
+                );
+            }
+            pairs.len() == batch_size
+        } {
+            // shuffle batch to ramdomize negatives and positives
+            // TODO verify this is a uniform shuffle (testing indicates it is but docs do not confirm)
+            thread_rng().shuffle(&mut pairs);
+
             // concatenate embeddings to get feature vector
             let x_batch: Tensor<f32>;
             let y_batch: Tensor<f32>;
@@ -212,7 +309,7 @@ fn main() {
                     batch_size as u64,
                 ]).with_values({
                     vec = Vec::with_capacity(x_size);
-                    for e in pairs[batch * batch_size..(batch + 1) * batch_size].iter() {
+                    for e in pairs.iter() {
                         vec.append(&mut e.embedding.clone());
                     }
 
@@ -233,7 +330,7 @@ fn main() {
                 y_batch = Tensor::new(&[1u64, batch_size as u64])
                     .with_values({
                         // assign to vec first because of type inference in collect()
-                        vec = pairs[batch * batch_size..(batch + 1) * batch_size]
+                        vec = pairs
                             .iter()
                             .map(|e| if e.valid { 1.0f32 } else { 0.0f32 })
                             .collect();
@@ -281,7 +378,7 @@ fn main() {
                 // get specific misclassifications and write to file
                 let y_vec: Vec<f32> = y_batch.to_vec();
                 let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
-                let pairs: &[NAdjPair] = &pairs[batch * batch_size..(batch + 1) * batch_size];
+                let pairs: &[NAdjPair] = &pairs;
                 let mut false_pos: usize = 0usize;
                 let mut false_neg: usize = 0usize;
                 for i in 0..batch_size {
@@ -337,38 +434,43 @@ fn main() {
         .run(&mut load_step)
         .expect("Could not load weights");*/}
 
-fn read_samples(pairs: &mut Vec<NAdjPair>, path: &str, valid: bool, embedding_model: &Embeddings) {
-    let pair_file: File = File::open(path).expect("Could not open sample file");
-    let pair_file: BufReader<_> = BufReader::new(pair_file);
-    for line in pair_file.lines().map(|l| match l {
-        Ok(s) => s,
-        Err(..) => String::new(),
-    }) {
-        // get samples
-        let fields: Vec<String> = line
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect::<Vec<_>>();
-        pairs.push(NAdjPair {
-            noun: fields[0].clone(),
-            adj: fields[1].clone(),
-            valid,
-            embedding: {
-                let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
-                vec.append(&mut match embedding_model.embedding(&(fields[0].clone())) {
-                    Some(v) => v.to_vec(),
-                    None => {
-                        continue;
-                    } // do not train on unknown words
-                });
-                vec.append(&mut match embedding_model.embedding(&(fields[1].clone())) {
-                    Some(v) => v.to_vec(),
-                    None => {
-                        continue;
-                    }
-                });
-                vec
-            },
-        });
+fn read_samples<I>(
+    pairs: &mut Vec<NAdjPair>,
+    iter: &mut I,
+    valid: bool,
+    embedding_model: &Embeddings,
+    max_length: usize,
+) where
+    I: Iterator<Item = String>,
+{
+    while pairs.len() < max_length {
+        if let Some(line) = iter.next() {
+            // get samples
+            let fields: Vec<String> = line
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>();
+            pairs.push(NAdjPair {
+                noun: fields[0].clone(),
+                adj: fields[1].clone(),
+                valid,
+                embedding: {
+                    let mut vec: Vec<f32> = Vec::with_capacity(2 * embedding_model.embed_len());
+                    vec.append(&mut match embedding_model.embedding(&(fields[0].clone())) {
+                        Some(v) => v.to_vec(),
+                        None => {
+                            continue;
+                        } // do not train on unknown words
+                    });
+                    vec.append(&mut match embedding_model.embedding(&(fields[1].clone())) {
+                        Some(v) => v.to_vec(),
+                        None => {
+                            continue;
+                        }
+                    });
+                    vec
+                },
+            });
+        }
     }
 }

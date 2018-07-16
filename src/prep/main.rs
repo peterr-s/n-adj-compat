@@ -203,7 +203,8 @@ fn main() {
         // go through all combinations of similar words
         let similar_max: usize = settings["neg_neighbors"]
             .as_u64()
-            .expect("Could not get negative neighbor count from file") as usize;
+            .expect("Could not get negative neighbor count from file")
+            as usize;
         /*let range: Range<usize> = Range::new(0usize, {
             let mut sum: usize = 0usize;
             for i in 0..similar_ct {

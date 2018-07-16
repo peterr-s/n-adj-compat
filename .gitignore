@@ -8,9 +8,15 @@ test
 text
 pairs
 pos
+pos_shuffled
 neg
+neg_shuffled
 *.swp
 model.ckpt.*
 misclassified
 nohup.*
+run
+debug
+view
+n
 
