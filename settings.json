@@ -1,9 +1,10 @@
 {
 	"batch_size" : 10000,
-	"epoch_ct" : 3,
-	"hidden_sizes" : [3000, 3000],
+	"epoch_ct" : 5,
+	"hidden_sizes" : [2000, 2000, 1000],
 	"learning_rate" : 0.005,
-	"dropout_retention" : 0.8,
+	"dropout_retention" : 1.0,
+	"sigmoid_cutoff" : 8,
 	
 	"embedding_dim" : 300,
 	"min_embed_ct" : 50,
@@ -23,6 +24,7 @@
 		}
 	],
 	"neg_neighbors" : 4,
+	"buf_size" : 10000,
 
 	"graph_file" : "./graph.pb",
 	"weight_file" : "./model.ckpt",

@@ -12,6 +12,22 @@ settings_file.close()
 batch_size = settings["batch_size"]
 embedding_dim = settings["embedding_dim"]
 hidden_sizes = settings["hidden_sizes"]
+sigmoid_cutoff = settings["sigmoid_cutoff"]
+
+# this prevents the weights from being perpetually adjusted after they're good enough
+def cutoff_sigmoid(x, name = None) :
+    pos_mask = tf.where(
+            tf.greater(x, sigmoid_cutoff),
+            x = tf.fill(x.shape, 1.0),
+            y = tf.sigmoid(x)
+            )
+    neg_mask = tf.where(
+            tf.less(pos_mask, -sigmoid_cutoff),
+            x = tf.fill(x.shape, 0.0),
+            y = pos_mask,
+            name = name
+            )
+    return neg_mask
 
 # mitchell and lapata
 # papers on embeddings, compatibility in parsing
@@ -32,7 +48,7 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
 # confidence (output) layer
 w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
 b = tf.get_variable("b_o", shape = [batch_size])
-y_pred = tf.sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
+y_pred = cutoff_sigmoid(tf.matmul(w, hidden) + b, name = "y_pred")
 
 loss = tf.losses.log_loss(y, y_pred)
 loss = tf.identity(loss, name = "loss")
