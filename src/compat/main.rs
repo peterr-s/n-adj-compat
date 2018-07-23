@@ -290,15 +290,6 @@ fn main() {
                     &embedding_model,
                     batch_size,
                 );
-                /* if pairs.len() < batch_size {
-                read_samples(
-                    &mut pairs,
-                    &mut neg_iter,
-                    false,
-                    &embedding_model,
-                    batch_size,
-                );
-            }*/
                 pairs.len() == batch_size
             } {
                 // shuffle batch to ramdomize negatives and positives
@@ -418,7 +409,7 @@ fn main() {
 
                     // print batch results
                     print!(
-                        "Epoch: {}\t Batch: {}\tTrain loss: {:1.4}\tVal loss: {:1.4}\tAccuracy: {:1.4} ({:1.4} t1, {:1.4} t2)\r",
+                        "Epoch: {}\t Batch: {}\tTrain loss: {:1.4}\tVal loss: {:1.4}\tAccuracy: {:1.4} ({:1.4} fp, {:1.4} fn)\r",
                         epoch,
                         batch,
                         train_loss.deref()[0],
