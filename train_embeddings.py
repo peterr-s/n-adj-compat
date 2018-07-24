@@ -19,10 +19,10 @@ if len(sys.argv) > 1 :
         sentences += [line.split()[1:]] # skip root
     input.close()
     del(input)
-else
-	sentences += [["__"]]
+else :
+    sentences += [["__", "__", "__"]]
 
-model = gensim.models.Word2Vec(sentences, size = 300, window = 10, min_count = 50)
+model = gensim.models.Word2Vec(sentences, size = 300, window = 10, min_count = 1)
 
 # not really clear that binary True/False makes a difference, but the other module is forced to read as text so that's how we'll do it
 model.wv.save_word2vec_format("./temp-embeddings", binary=False)

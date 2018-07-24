@@ -157,7 +157,7 @@ fn main() {
 
                         // clear sentence (except root)
                         sentence.resize(1, root_entry.clone()); // should never need to actually fill anything
-                    } else {
+                    } else if line.as_bytes()[0] != b'#' { // skip comment lines
                         // otherwise, extract the important CoNLL fields
                         let fields: Vec<String> = line
                             .split_whitespace()
@@ -166,7 +166,7 @@ fn main() {
                         if fields.len() >= 7 {
                             let entry: CoNLLEntry = CoNLLEntry {
                                 lemma: fields[2].clone(),
-                                pos: fields[4].clone(),
+                                pos: fields[3].clone(),
                                 head: match fields[6].parse::<u8>() {
                                     Ok(n) => n,
                                     Err(..) => 0,

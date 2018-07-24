@@ -21,7 +21,7 @@ fn main() {
             .expect("Could not read settings file");
         settings = serde_json::from_str(&settings_str).expect("Could not parse settings");
     }
-    let embedding_path: &str = settings["embed_file"]
+    let embedding_path: &str = settings["embedding_file"]
         .as_str()
         .expect("Could not get embedding path from settings");
 
