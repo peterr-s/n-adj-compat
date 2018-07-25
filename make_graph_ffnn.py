@@ -32,7 +32,6 @@ def cutoff_sigmoid(x, name = None) :
 # mitchell and lapata
 # papers on embeddings, compatibility in parsing
 
-#normalize batch
 x = tf.placeholder(tf.float32, shape = [2 * embedding_dim, batch_size], name = "x")
 y = tf.placeholder(tf.float32, shape = [1, batch_size], name = "y");
 
@@ -42,8 +41,8 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
     w = tf.get_variable("w_h_%i" % i, shape = [hidden_size, hidden.shape[0]])
     b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
 
-    hidden = tf.nn.relu(tf.matmul(w, hidden) + b) # leaky?
-    hidden = tf.nn.dropout(hidden, settings["dropout_retention"]) # dropout (5%? 10%?)
+    hidden = tf.nn.leaky_relu(tf.matmul(w, hidden) + b)
+    hidden = tf.nn.dropout(hidden, settings["dropout_retention"])
 
 # confidence (output) layer
 w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
