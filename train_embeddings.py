@@ -22,7 +22,7 @@ if len(sys.argv) > 1 :
 else :
     sentences += [["__", "__", "__"]]
 
-model = gensim.models.Word2Vec(sentences, size = 300, window = 10, min_count = 1)
+model = gensim.models.Word2Vec(sentences, size = settings["embedding_dim"], window = 10, min_count = settings["min_count"])
 
 # not really clear that binary True/False makes a difference, but the other module is forced to read as text so that's how we'll do it
 model.wv.save_word2vec_format("./temp-embeddings", binary=False)
