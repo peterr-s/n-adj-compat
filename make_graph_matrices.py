@@ -35,8 +35,8 @@ for sample_file in settings["sample_files"] :
 			a_set.add(fields[1])
 n_embed_mat = np.array([embedding_model[e] for e in n_set if e in embedding_model])
 a_embed_mat = np.array([embedding_model[e] for e in a_set if e in embedding_model])
-n_clusterer = tf.constant(n_clusterer.fit_predict(n_embed_mat))
-a_clusterer = tf.constant(a_clusterer.fit_predict(a_embed_mat))
+n_clusterer = tf.constant(n_clusterer.fit_predict(n_embed_mat), dtype = tf.int32) # uint32 is not allowed as a tf idx type for some reason
+a_clusterer = tf.constant(a_clusterer.fit_predict(a_embed_mat), dtype = tf.int32)
 n_embed_mat = tf.constant(n_embed_mat)
 a_embed_mat = tf.constant(a_embed_mat)
 
@@ -72,37 +72,56 @@ y = tf.placeholder(tf.float32, shape = [1, batch_size], name = "y");
 # get indices of matched elements on axis 0
 # get centroid ids
 # get transformation matrices
-n_mat = tf.nn.embedding_lookup(
-            n_matrices,
-            tf.gather(
-                n_clusterer,
-                tf.argmax(
-                    tf.cast(
-                        tf.equal(
-                            tf.matmul(n_embed_mat, x_n),
-                            tf.reduce_sum(x_n * x_n)
+n_mat_idx = tf.gather(
+                n_clusterer,                                # (embed_ct)
+                tf.argmax(                                  # batch_size                    indices in embed_mat of matches
+                    tf.cast(                                # (embed_ct) x batch_size
+                        tf.equal(                           # (embed_ct) x batch_size       matches of sq L2 and dot prod
+                            tf.matmul(                      # (embed_ct) x batch_size       dot prods of all X with all known embed
+                                n_embed_mat,                # (embed_ct) x embedding_dim
+                                x_n                         # embedding_dim x batch_size
+                                ),
+                            tf.reshape(                     # 1 x batch_size                sq L2 norm of each embedding
+                                tf.reduce_sum(              # batch_size
+                                    x_n * x_n,              # embedding_dim x batch_size
+                                    axis = 0
+                                    ),
+                                shape = [1, batch_size]
+                                )
                             ),
                         dtype = tf.uint8
                         ),
                     axis = 0
-                    )
+                    ),
+                name = "n_mat_idx"
                 )
-            )
-a_mat = tf.nn.embedding_lookup(
-            a_matrices,
-            tf.gather(
+a_mat_idx = tf.gather(
                 a_clusterer,
                 tf.argmax(
                     tf.cast(
                         tf.equal(
-                            tf.matmul(n_embed_mat, x_a),
-                            tf.reduce_sum(x_a * x_a)
+                            tf.matmul(a_embed_mat, x_a),
+                            tf.reshape(
+                                tf.reduce_sum(
+                                    x_a * x_a,
+                                    axis = 0
+                                    ),
+                                shape = [1, batch_size]
+                                )
                             ),
                         dtype = tf.uint8
                         ),
                     axis = 0
-                    )
+                    ),
+                name = "a_mat_idx"
                 )
+n_mat = tf.nn.embedding_lookup(
+            n_matrices,
+            n_mat_idx
+            )
+a_mat = tf.nn.embedding_lookup(
+            a_matrices,
+            a_mat_idx
             )
 
 # multiply by matrices of counterparts

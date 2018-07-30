@@ -110,6 +110,32 @@ fn main() {
         .operation_by_name_required("accuracy")
         .expect("Could not find variable \"accuracy\" in graph");
 
+    // matrix transformation only
+    let is_mat: bool;
+    let n_mat_idx: Operation;
+    let a_mat_idx: Operation;
+    {
+        let n_mat_idx_opt: Option<Operation> = graph
+            .operation_by_name("n_mat_idx")
+            .expect("Unexpected NUL in graph file"); // why does this get thrown here if the graph is already read?
+        let a_mat_idx_opt: Option<Operation> = graph
+            .operation_by_name("a_mat_idx")
+            .expect("Unexpected NUL in graph file");
+        if n_mat_idx_opt.is_some() && a_mat_idx_opt.is_some() {
+            is_mat = true;
+            n_mat_idx = n_mat_idx_opt.unwrap();
+            a_mat_idx = a_mat_idx_opt.unwrap();
+        } else {
+            is_mat = false;
+            n_mat_idx = graph
+                .operation_by_name_required("x")
+                .unwrap(); // this is just so the compiler doesn't fight me (no way to make an op not attached to a graph; need placeholder)
+            a_mat_idx = graph
+                .operation_by_name_required("x")
+                .unwrap();
+        }
+    }
+
     // save and load operations
     let save: Operation = graph
         .operation_by_name_required("save/control_dependency")
@@ -368,6 +394,8 @@ fn main() {
                     let y_pred_idx: OutputToken = validation_step.request_output(&y_pred, 0);
                     let loss_idx: OutputToken = validation_step.request_output(&loss, 0);
                     let accuracy_idx: OutputToken = validation_step.request_output(&accuracy, 0);
+                    let n_mat_idx_idx: OutputToken = validation_step.request_output(&n_mat_idx, 0);
+                    let a_mat_idx_idx: OutputToken = validation_step.request_output(&a_mat_idx, 0);
 
                     session
                         .run(&mut validation_step)
@@ -377,10 +405,16 @@ fn main() {
                     let loss_val: Tensor<f32> = validation_step.take_output(loss_idx).unwrap();
                     let accuracy_val: Tensor<f32> =
                         validation_step.take_output(accuracy_idx).unwrap();
+                    let n_mat_idx_val: Tensor<i32> =
+                        validation_step.take_output(n_mat_idx_idx).unwrap();
+                    let a_mat_idx_val: Tensor<i32> =
+                        validation_step.take_output(a_mat_idx_idx).unwrap();
 
                     // get specific misclassifications and write to file
                     let y_vec: Vec<f32> = y_batch.to_vec();
                     let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
+                    let n_mat_idx_vec: Vec<i32> = n_mat_idx_val.to_vec();
+                    let a_mat_idx_vec: Vec<i32> = a_mat_idx_val.to_vec();
                     let pairs: &[NAdjPair] = &pairs;
                     let mut false_pos: usize = 0usize;
                     let mut false_neg: usize = 0usize;
@@ -388,13 +422,25 @@ fn main() {
                         let pred_valid: bool = y_pred_vec[i] > 0.5;
                         let is_valid: bool = y_vec[i] > 0.5;
                         if pred_valid != is_valid {
-                            let misclassified_string: String = format!(
-                                "{}, {}, {}, {}\n",
-                                &(pairs[i].noun),
-                                &(pairs[i].adj),
-                                y_pred_vec[i],
-                                y_vec[i],
-                            );
+                            let misclassified_string: String = if is_mat {
+                                format!(
+                                    "{}, {}, {}, {}, {}, {}\n",
+                                    &(pairs[i].noun),
+                                    &(pairs[i].adj),
+                                    n_mat_idx_vec[i],
+                                    a_mat_idx_vec[i],
+                                    y_pred_vec[i],
+                                    y_vec[i],
+                                )
+                            } else {
+                                format!(
+                                    "{}, {}, {}, {}\n",
+                                    &(pairs[i].noun),
+                                    &(pairs[i].adj),
+                                    y_pred_vec[i],
+                                    y_vec[i],
+                                )
+                            };
                             misclassified_file
                                 .write_all(misclassified_string.as_bytes())
                                 .expect("Could not write misclassified pair to file");
