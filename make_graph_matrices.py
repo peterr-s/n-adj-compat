@@ -1,8 +1,10 @@
 #!/usr/bin/python3
 
 import tensorflow as tf
+import numpy as np
 import json
 from gensim.models import KeyedVectors
+from sklearn.cluster import MiniBatchKMeans
 
 # read settings file
 settings_file = open("settings.json", "r")
@@ -12,9 +14,31 @@ settings_file.close()
 # hyperparameters
 batch_size = settings["batch_size"]
 embedding_dim = settings["embedding_dim"]
-hidden_sizes = settings["hidden_sizes"]
 sigmoid_cutoff = settings["sigmoid_cutoff"]
-mat_width = settings["mat_width"]
+n_mat_ct = settings["n_mat_ct"]
+a_mat_ct = settings["a_mat_ct"]
+n_embed_retention = settings["n_embed_retention"]
+a_embed_retention = settings["a_embed_retention"]
+
+# make clusters for matrices
+embedding_model = KeyedVectors.load_word2vec_format(settings["embedding_file"], binary = True)
+n_clusterer = MiniBatchKMeans(n_clusters = n_mat_ct)
+a_clusterer = MiniBatchKMeans(n_clusters = a_mat_ct)
+n_set = set()
+a_set = set()
+for sample_file in settings["sample_files"] :
+	pair_list = open(sample_file["path"])
+	for line in pair_list.read().split("\n") :
+		fields = line.split()
+		if len(fields) == 2 :
+			n_set.add(fields[0])
+			a_set.add(fields[1])
+n_embed_mat = np.array([embedding_model[e] for e in n_set if e in embedding_model])
+a_embed_mat = np.array([embedding_model[e] for e in a_set if e in embedding_model])
+n_clusterer = tf.constant(n_clusterer.fit_predict(n_embed_mat))
+a_clusterer = tf.constant(a_clusterer.fit_predict(a_embed_mat))
+n_embed_mat = tf.constant(n_embed_mat)
+a_embed_mat = tf.constant(a_embed_mat)
 
 # this prevents the weights from being perpetually adjusted after they're good enough
 def cutoff_sigmoid(x, name = None) :
@@ -31,38 +55,9 @@ def cutoff_sigmoid(x, name = None) :
             )
     return neg_mask
 
-# for numbering embeddings so they can be used as keys in embedding_lookup
-class Numberer :
-    def __init__(self) :
-        self.eton = dict()
-        self.ntoe = list()
-
-    def number(self, embedding) :
-        n = self.eton.get(embedding)
-
-        if n is None :
-            n = len(self.ntoe)
-            self.eton[embedding] = n
-            self.ntoe.append(embedding)
-
-        return n
-
-    def value(self, number) :
-        return tf.gather(self.ntoe, number)
-
-n_numberer = Numberer()
-a_numberer = Numberer()
-
-# mitchell and lapata
-# papers on embeddings, compatibility in parsing
-
-# get model purely so that we know how many matrices are needed
-model = KeyedVectors.load_word2vec_format(settings["embedding_file"], binary = True)
-word_ct = len(model.wv.vocab)
-
 # train different matrices in case words occur as both n and adj
-n_matrices = tf.get_variable("n_matrices", shape = [word_ct, mat_width, embedding_dim])
-a_matrices = tf.get_variable("a_matrices", shape = [word_ct, mat_width, embedding_dim])
+n_matrices = tf.get_variable("n_matrices", shape = [n_mat_ct, embedding_dim, embedding_dim])
+a_matrices = tf.get_variable("a_matrices", shape = [a_mat_ct, embedding_dim, embedding_dim])
 
 x = tf.placeholder(tf.float32, shape = [2 * embedding_dim, batch_size], name = "x")
 y = tf.placeholder(tf.float32, shape = [1, batch_size], name = "y");
@@ -72,23 +67,41 @@ y = tf.placeholder(tf.float32, shape = [1, batch_size], name = "y");
 (x_n, x_a) = tf.split(x, 2, axis = 0)
 
 # get matrices for each
-# transpose matrix so that map_fn is applied to each element in the batch
-# map using numberer
-# this converts from rank 3 float to rank 2 int
+# get square of L2 norm of batch elementwise
+# compare to dot prod of embedding model matrix with batch, matches are definite because everything has the same length (cf. def of cosine)
+# get indices of matched elements on axis 0
+# get centroid ids
+# get transformation matrices
 n_mat = tf.nn.embedding_lookup(
             n_matrices,
-            tf.map_fn(
-                n_numberer.number,
-                tf.transpose(x_n),
-                dtype = tf.int32
+            tf.gather(
+                n_clusterer,
+                tf.argmax(
+                    tf.cast(
+                        tf.equal(
+                            tf.matmul(n_embed_mat, x_n),
+                            tf.reduce_sum(x_n * x_n)
+                            ),
+                        dtype = tf.uint8
+                        ),
+                    axis = 0
+                    )
                 )
             )
 a_mat = tf.nn.embedding_lookup(
             a_matrices,
-            tf.map_fn(
-                a_numberer.number,
-                tf.transpose(x_a),
-                dtype = tf.int32
+            tf.gather(
+                a_clusterer,
+                tf.argmax(
+                    tf.cast(
+                        tf.equal(
+                            tf.matmul(n_embed_mat, x_a),
+                            tf.reduce_sum(x_a * x_a)
+                            ),
+                        dtype = tf.uint8
+                        ),
+                    axis = 0
+                    )
                 )
             )
 
