@@ -166,7 +166,7 @@ fn main() {
                         if fields.len() >= 7 {
                             let entry: CoNLLEntry = CoNLLEntry {
                                 lemma: fields[2].clone(),
-                                pos: fields[3].clone(),
+                                pos: fields[4].clone(),
                                 head: match fields[6].parse::<u8>() {
                                     Ok(n) => n,
                                     Err(..) => 0,

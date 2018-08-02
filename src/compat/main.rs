@@ -127,12 +127,8 @@ fn main() {
             a_mat_idx = a_mat_idx_opt.unwrap();
         } else {
             is_mat = false;
-            n_mat_idx = graph
-                .operation_by_name_required("x")
-                .unwrap(); // this is just so the compiler doesn't fight me (no way to make an op not attached to a graph; need placeholder)
-            a_mat_idx = graph
-                .operation_by_name_required("x")
-                .unwrap();
+            n_mat_idx = graph.operation_by_name_required("loss").unwrap(); // this is just so the compiler doesn't fight me (no way to make an op not attached to a graph; need placeholder)
+            a_mat_idx = graph.operation_by_name_required("loss").unwrap();
         }
     }
 
@@ -220,7 +216,11 @@ fn main() {
             File::create("./misclassified").expect("Could not create misclassification file");
         let mut misclassified_file: BufWriter<_> = BufWriter::new(misclassified_file);
         misclassified_file
-            .write_all(b"noun, adjective, confidence, validity\n")
+            .write_all(if is_mat {
+                b"noun, adjective, noun mat, adj mat, confidence, validity\n"
+            } else {
+                b"noun, adjective, confidence, validity\n"
+            })
             .expect("Could not write misclassification headers");
 
         // train each epoch on complete set
@@ -405,16 +405,16 @@ fn main() {
                     let loss_val: Tensor<f32> = validation_step.take_output(loss_idx).unwrap();
                     let accuracy_val: Tensor<f32> =
                         validation_step.take_output(accuracy_idx).unwrap();
-                    let n_mat_idx_val: Tensor<i32> =
+                    let n_mat_idx_val: Tensor<f32> =
                         validation_step.take_output(n_mat_idx_idx).unwrap();
-                    let a_mat_idx_val: Tensor<i32> =
+                    let a_mat_idx_val: Tensor<f32> =
                         validation_step.take_output(a_mat_idx_idx).unwrap();
 
                     // get specific misclassifications and write to file
                     let y_vec: Vec<f32> = y_batch.to_vec();
                     let y_pred_vec: Vec<f32> = y_pred_val.to_vec();
-                    let n_mat_idx_vec: Vec<i32> = n_mat_idx_val.to_vec();
-                    let a_mat_idx_vec: Vec<i32> = a_mat_idx_val.to_vec();
+                    let n_mat_idx_vec: Vec<f32> = n_mat_idx_val.to_vec();
+                    let a_mat_idx_vec: Vec<f32> = a_mat_idx_val.to_vec();
                     let pairs: &[NAdjPair] = &pairs;
                     let mut false_pos: usize = 0usize;
                     let mut false_neg: usize = 0usize;
