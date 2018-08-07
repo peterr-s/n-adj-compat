@@ -13,6 +13,7 @@ batch_size = settings["batch_size"]
 embedding_dim = settings["embedding_dim"]
 hidden_sizes = settings["hidden_sizes"]
 sigmoid_cutoff = settings["sigmoid_cutoff"]
+dropout_retention = settings["dropout_retention"]
 
 # this prevents the weights from being perpetually adjusted after they're good enough
 def cutoff_sigmoid(x, name = None) :
@@ -42,7 +43,7 @@ for (i, hidden_size) in enumerate(hidden_sizes) :
     b = tf.get_variable("b_h_%i" % i, shape = [hidden_size, 1])
 
     hidden = tf.nn.leaky_relu(tf.matmul(w, hidden) + b)
-    hidden = tf.nn.dropout(hidden, settings["dropout_retention"])
+    hidden = tf.nn.dropout(hidden, dropout_retention)
 
 # confidence (output) layer
 w = tf.get_variable("w_o", shape = [y.shape[0], hidden.shape[0]])
