@@ -116,10 +116,10 @@ fn main() {
     let a_mat_idx: Operation;
     {
         let n_mat_idx_opt: Option<Operation> = graph
-            .operation_by_name("n_mat_idx")
+            .operation_by_name("n_mat_rs")
             .expect("Unexpected NUL in graph file"); // why does this get thrown here if the graph is already read?
         let a_mat_idx_opt: Option<Operation> = graph
-            .operation_by_name("a_mat_idx")
+            .operation_by_name("a_mat_rs")
             .expect("Unexpected NUL in graph file");
         if n_mat_idx_opt.is_some() && a_mat_idx_opt.is_some() {
             is_mat = true;
@@ -424,7 +424,7 @@ fn main() {
                         if pred_valid != is_valid {
                             let misclassified_string: String = if is_mat {
                                 format!(
-                                    "{}, {}, {}, {}, {}, {}\n",
+                                    "{}, {}, {}, {}, {:.0}, {:.0}\n",
                                     &(pairs[i].noun),
                                     &(pairs[i].adj),
                                     n_mat_idx_vec[i],
