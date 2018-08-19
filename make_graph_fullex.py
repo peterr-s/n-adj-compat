@@ -115,6 +115,8 @@ a_mat_idx = tf.gather(
                     ),
                 name = "a_mat_idx"
                 )
+tf.cast(n_mat_idx, dtype = tf.float32, name = "n_mat_rs")
+tf.cast(a_mat_idx, dtype = tf.float32, name = "a_mat_rs")
 n_mat = tf.nn.embedding_lookup(
             n_matrices,
             n_mat_idx
