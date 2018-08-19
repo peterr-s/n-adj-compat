@@ -1,15 +1,15 @@
 {
 	"batch_size" : 10000,
-	"epoch_ct" : 15,
+	"epoch_ct" : 5,
 	"hidden_sizes" : [2000, 2000, 1000],
 	"learning_rate" : 0.005,
 	"dropout_retention" : 0.8,
 	"sigmoid_cutoff" : 8,
 
-	"n_mat_ct" : 100,
-	"a_mat_ct" : 100,
-	"n_embed_retention" : 1.0,
-	"a_embed_retention" : 1.0,
+	"n_mat_ct" : 80,
+	"a_mat_ct" : 80,
+	"n_mat_retention" : 0.1,
+	"a_mat_retention" : 0.1,
 	
 	"embedding_dim" : 300,
 	"min_embed_ct" : 50,

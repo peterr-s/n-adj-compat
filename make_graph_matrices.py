@@ -13,6 +13,8 @@ batch_size = settings["batch_size"]
 embedding_dim = settings["embedding_dim"]
 sigmoid_cutoff = settings["sigmoid_cutoff"]
 dropout_retention = settings["dropout_retention"]
+n_mat_retention = settings["n_mat_retention"]
+a_mat_retention = settings["a_mat_retention"]
 n_mat_ct = settings["n_mat_ct"]
 a_mat_ct = settings["a_mat_ct"]
 
@@ -47,31 +49,39 @@ w_n = tf.get_variable("w_n", shape = [n_mat_ct, embedding_dim, embedding_dim])
 w_a = tf.get_variable("w_a", shape = [a_mat_ct, embedding_dim, embedding_dim])
 b_t = tf.get_variable("b_t", shape = [mat_ct, embedding_dim, batch_size])
 
-transformed = tf.concat(                                # mat_ct x embedding_dim x batch_size
-		[
-                    tf.matmul(                          # a_mat_ct x embedding_dim x batch_size
-                        w_a,                            # a_mat_ct x embedding_dim x embedding_dim
-                        tf.tile(                        # a_mat_ct x embedding_dim x batch_size
-                            tf.reshape(                 # 1 x embedding_dim x batch_size
-                                x_n,
-                                [1] + list(x_n.shape)
+transformed = tf.concat(                                    # mat_ct x embedding_dim x batch_size
+                    [
+                        tf.matmul(                          # a_mat_ct x embedding_dim x batch_size
+                            tf.nn.dropout(
+                                w_a,                        # a_mat_ct x embedding_dim x embedding_dim
+                                a_mat_retention,
+                                noise_shape = [a_mat_ct, 1, 1]
                                 ),
-                            [a_mat_ct, 1, 1]
+                            tf.tile(                        # a_mat_ct x embedding_dim x batch_size
+                                tf.reshape(                 # 1 x embedding_dim x batch_size
+                                    x_n,
+                                    [1] + list(x_n.shape)
+                                    ),
+                                [a_mat_ct, 1, 1]
+                                )
+                            ),
+                        tf.matmul(                          # n_mat_ct x embedding_dim x batch_size
+                            tf.nn.dropout(
+                                w_n,                        # n_mat_ct x embedding_dim x embedding_dim
+                                n_mat_retention,
+                                noise_shape = [n_mat_ct, 1, 1]
+                            ),
+                            tf.tile(                        # n_mat_ct x embedding_dim x batch_size
+                                tf.reshape(                 # 1 x embedding_dim x batch_size
+                                    x_a,
+                                    [1] + list(x_a.shape)
+                                    ),
+                                [n_mat_ct, 1, 1]
+                                )
                             )
-                        ),
-                    tf.matmul(                          # n_mat_ct x embedding_dim x batch_size
-                        w_n,                            # n_mat_ct x embedding_dim x embedding_dim
-                        tf.tile(                        # n_mat_ct x embedding_dim x batch_size
-                            tf.reshape(                 # 1 x embedding_dim x batch_size
-                                x_a,
-                                [1] + list(x_a.shape)
-                                ),
-                            [n_mat_ct, 1, 1]
-                            )
-                        )
-                ],
-		axis = 0
-		) + b_t
+                    ],
+                    axis = 0
+                    ) + b_t
 
 
 # confidence (output) layer
