@@ -30,6 +30,8 @@ Before presenting the actual results we investigate existing work on compatibili
 
 \section{Related Work}
 
+\subsection{Statistical approaches to compatibility}
+
 Existing work on compatibility has been primarily on the basis of statistical metrics applied to concrete words. Conditional probability and cooccurrence have been shown to be effective (Martin Volk), and the lexical association metric (Hindle and Rooth) also works. Pointwise mutual information can likewise be adapted to a highly effective determiner of compatibility (van Noord).
 
 The earliest of these works was that by Hindle and Rooth, whose approach is elegant and quick, but has a few pitfalls. Firstly, it is only a comparison metric that can disambiguate between two possibilities, rather than determining absolute compatibility. Secondly, it requires that the noun-preposition attachment have been seen, as have both candidates in isolation, else the metric becomes undefined. Thirdly, it requires that the verb attachment and the unattached noun have been seen or else the metric assigns a value of complete uncertainty. Lastly, even when these have all been seen, performance remains low when they have not been seen very often.
@@ -48,23 +50,41 @@ The exact measure used here is not as directly related to mutual information as 
 
 Given that this is the case, a metric which ranks pairs by co-occurence should be applicable to this task, possibly allowing a simple threshold to be set in order to discriminate between valid and invalid pairs. The question remains, however, which metric should be used. Normalized PMI has a few useful properties for tasks of this nature (Bouma), most importantly that it counteracts PMI's bias toward rare collocations and, as a direct result of its nature, has a fixed interpretation; once the cutoff is determined the space of accepted tokens can be expanded without completely retraining the model. Of course, since this project is designed to work on word embeddings, this would mean first training a predictor for NPMI and then finding the appropriate cutoff.
 
-More concretely, research in composition has had success with certain methods, notably FullLex (Socher et al. 2012) and transformation selection (de Kok, Dima). Assuming one can accurately predict what the composition should be if the constituents are compatible, it stands to reason that a valid angle might be checking the resultant embedding for validity. The ideal method for the latter operation is less well-explored. However, since the goal here is to take a neural approach, it may be possible to train adaptations of the aforementioned composition models to simply output a binary classification directly or with one extra layer.
+\subsection{Embedding composition}
+
+As far as embedding-based approaches, the only existing work is in composition itself. Two notably successful architectures for compostion are FullLex (Socher et al. 2012) and transformation selection (de Kok, Dima). Both of these involve applying a transformation to each constituent and then another to the concatenation of the outputs, the difference being in whether one or all of the possible transformations is applied.
+
+Assuming one can accurately predict what the composition should be if the constituents are compatible, it stands to reason that a valid angle might be checking the resultant embedding for validity. The ideal method for the latter operation is less well-explored. However, since the goal here is to take a neural approach, it may be possible to train adaptations of the aforementioned composition models to simply output a binary classification directly or with one extra layer.
 
 Embeddings can be trained to represent different properties of words. While it is clear that with a large corpus a high dimensionality and cutoff, e.g. the common values of 300 and 50, respectively, will lead to more accurate embeddings, this does not mean the represented information is the information we are looking for. Although our experiment uses Word2Vec embeddings, the paper introducing GloVe (Pennington, Socher, Manning) suggests that smaller windows will favor syntactic information, whereas larger windows favor semantic information.
 
 
 \section{Preprocessing}
 
-The inputs to the neural network are Word2Vec embeddings trained over the entire dataset. A window size of 10 ensures that the embeddings carry more semantic than syntactic information, and a minimum count of 50 ensures that all the embeddings used have been trained well enough to be reasonably accurate representations. I chose an embedding dimensionality of 300 to ensure that the network has as fine-grained information to work with as possible.
+\subsection{Corpus}
 
-The ConLL data is searched for dependencies between nouns of any type and adjectives of any type. Any pairs for which an embedding is not found for either component are discarded since they will be of no use for training. Because any pair found in the corpus can be assumed to be valid, the positive samples on which the model is trained are simply all pairs which occur in the corpus on which it can be trained, i.e. all those for which embeddings could be generated. This means that the minimum count for the embedding model has a further consequence beyond ensuring validity of the embeddings: the model will not attempt to learn based on rare words which might have strange or simply incompletely represented compatibility properties. Because the list is not deduplicated, the model learns primarily from pairs where the compatiblity is well-established.
+The corpus used in this experiment is made up of articles published from 1986 to 2009 in the German Tageszeitung (taz) newspaper. It contains 28.9 million sentences and a total of 393.7 million tokens, tagged and parsed automatically. This is done with the Citar tagger, the parser presented in (de Kok, 2016), and the Lemming lemmatizer.
 
-Of course, it does not make sense to train only on positive samples. Negative samples are generated first by random sampling, but then filtered against not only pairs that did occur, but those which are embedding-wise similar. In order to avoid doing a quadratic number of searches depending on the number of similar embeddings taken into account, I make a quadratic number of entries in a Bloom filter, which is of course much faster while still being memory efficient. The filter is designed to have a false positive rate of at most 5\% , though in reality this should be even lower since the element count is estimated directly from the number of positive samples and the filter does not need additional space for duplicate elements. The process is further sped up by keeping the neighbor lists in a hash map once they have been looked up, which costs memory at preprocessing time but allows it to be freed for training.
+The tagger is about 96\% accurate (Plank, van Noord, 2011), the parser achieves just over 90\% LAS, and the lemmatizer is about 98\% accurate. It is important that the annotations be not only valid but complete so as to ensure that (1) the embeddings on which the model trains are indeed those of adjectives and nouns, (2) as many positive edge cases as possible are accurately modelled (a) so as to make the most meaningful impact on parsing and (b) so they are not caught by the negative sampling, actively degrading the accuracy of the model.
+
+In terms of the data relevant to our experiment, there are 26.6 million noun-adjective pairs found in the corpus for which an embedding can be trained for at least one constituent with the 50 occurrence minimum. About 24.6 million of these are actually used in training, that is, both embeddings are present. The number of usable positive samples is the limiting factor in the total quantity of data, as we will see later.
+
+\subsection{Embeddings}
+
+The inputs to the neural network are Word2Vec embeddings trained over the entire dataset. A window size of 10 ensures that the embeddings carry more semantic than syntactic information, and a minimum count of 50 ensures that all the embeddings used have been trained well enough to be reasonably accurate representations. We settled on an embedding dimensionality of 300 to ensure that the network has as fine-grained information to work with as possible.
+
+The ConLL data is searched for dependencies between nouns of any type and adjectives of any type. Any pairs for which an embedding is not found for either component are discarded since they will be of no use for training. Because any pair found in the corpus can be assumed to be valid, the positive samples on which the model is trained are simply all pairs which occur in the corpus on which it can be trained, i.e. all those for which embeddings could be generated.
+
+The way positive samples are generated means that the minimum count for the embedding model has a further consequence beyond ensuring validity of the embeddings: the model will not attempt to learn based on rare words which might have strange or simply incompletely represented compatibility properties. Because the list is not deduplicated, the model learns primarily from pairs where the compatiblity is well-established.
+
+\subsection{Negative sampling}
+
+Of course, it does not make sense to train only on positive samples. Negative samples are generated first by random sampling, but then filtered against not only pairs that did occur, but those which are embedding-wise similar. In order to avoid doing a quadratic number of searches depending on the number of similar embeddings taken into account, we make a quadratic number of entries in a Bloom filter, which is of course much faster while still being memory efficient. The filter is designed to have a false positive rate of at most 5\% , though in reality this will be even lower since the element count is estimated directly from the number of positive samples and the filter does not need additional space for duplicate elements; it is substantially larger and sparser than it needs to be. The process is further sped up by keeping the neighbor lists in a hash map once they have been looked up, which costs memory at preprocessing time, but this step need be done only once and can be used with all the architectures examined in this thesis.
 
 Each negative sample is generated and then tested against the Bloom filter, then scrapped and regenerated if it is found. This allows precise control over the number of negative samples. In order to maintain a balanced training set, I fixed this to the number of positive samples.
 
 
-\section{Model}
+\section{Models}
 
 \subsection{Linear Classifier}
 In order to determine whether it even makes sense to spend time training a slower, more complex, and less transparent architecture, I first tried applying a simple linear classifier to this task. However, even with transformations to dimensions in the thousands, accuracy did not improve far beyond a guess, and higher-dimensional matrices provided no marginal benefit. For this reason I abandoned this approach and moved to architectures with nonlinearities.
