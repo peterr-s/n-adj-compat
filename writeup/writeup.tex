@@ -1,4 +1,11 @@
-\documentclass{article}
+\documentclass[a4paper, 11pt]{scrartcl}
+%\documentclass[a4paper, 11pt]{article}
+%\usepackage[margin=2.7cm]{geometry}     % sets the borders to 2.7cm each
+\usepackage[english]{babel}             % defines language for spacing
+\usepackage[utf8]{inputenc}             % allows entering special characters
+\usepackage[T1]{fontenc}                % sets font to T1 and allows umlaute
+\usepackage{lmodern}                    % improves font display in PDFs
+\usepackage{microtype}                  % improves spacing when using lmodern
 
 \begin{document}
 
@@ -6,6 +13,10 @@
 \author{Peter Schoener}
 \date{\today}
 \maketitle
+\clearpage
+
+\tableofcontents
+\clearpage
 
 \section{Introduction}
 
@@ -86,28 +97,98 @@ Each negative sample is generated and then tested against the Bloom filter, then
 
 \section{Models}
 
-\subsection{Linear Classifier}
-In order to determine whether it even makes sense to spend time training a slower, more complex, and less transparent architecture, I first tried applying a simple linear classifier to this task. However, even with transformations to dimensions in the thousands, accuracy did not improve far beyond a guess, and higher-dimensional matrices provided no marginal benefit. For this reason I abandoned this approach and moved to architectures with nonlinearities.
+\subsection{Logistic Regression}
+In order to determine whether it even makes sense to spend time training a slower, more complex, and less transparent architecture, I first tried applying logistic regression to this task. However, even with transformations to dimensions in the thousands, accuracy did not improve far beyond a guess, and higher-dimensional matrices provided no marginal benefit. For this reason I abandoned this approach and moved to architectures that allowed more complex interactions.
 
 \subsection{Feed-Forward Neural Network}
-The final version of this model is a feed-forward neural network with three hidden layers of 2000, 2000, and 1000 neurons. More neurons per layer did not yield any significant improvement, nor did more layers. When compared to a single hidden layer with 2000 neurons, this expansion gives an improvement in validation accuracy of about two percentage points. The hidden layers use ReLU activation simply because it has been shown to work well and indeed gave better results than the hyperbolic tangent I had been using previously. The hidden layers have dropout with 80\% retention to prevent overfit. The output layer uses an approximation of the logistic (sigmoid) function to end up with a value between zero and one, which can be interpreted as a probability. In order to avoid continued adjustment of good weights, which would lead to them growing out of control, the output of the sigmoid is rounded if the input is beyond a certain cutoff. A good value for the cutoff turned out to be eight.
+The final version of this model is a feed-forward neural network with three hidden layers of 2000, 2000, and 1000 neurons. More neurons per layer did not yield any significant improvement, nor did more layers. When compared to a single hidden layer with 2000 neurons, this expansion gives an improvement in validation accuracy of about two percentage points. While not a huge leap, this is substantial enough to warrant the expansion. Moreover, by expanding until performance plateaus, it is possible to determine the limit of this approach.
 
-Training is done using an Adam optimizer with a learning rate of 0.005 in batches of 10000 samples. In order to maintain balanced batches, the entire test set is shuffled at the beginning of each epoch. Because the validation is simply done on every fourth batch rather than being split in advance, this also works out to be a form of cross-validation. The inputs to the model are the concatenations of the noun and adjective embeddings, i.e. a rank one tensor with 600 elements. The training outputs are simply booleans \textemdash one for positive and zero for negative samples. An output of over 0.5 is considered a prediction that the pair is valid, and an output of 0.5 or lower the converse. Because an output of 0.5 means that the model is entirely unsure of how to categorize the pair, and because there are a roughly equal number of false positives and false negatives ignoring this case, I simply decided to manually guess against the pair being valid at exactly 50\% confidence.
+The hidden layers use ReLU activation simply because it has been shown in previous experiments to work well and indeed gave better results than the hyperbolic tangent we had been using initially. The hidden layers have dropout with 80\% retention to prevent overfit, though with such a large dataset this is not a huge risk to begin with. Using less dropout does not improve accuracy either, so it certainly does not harm the model.
 
-\subsection{Matrix-based Transformation}
-Because of the success with this approach in composition, it was reasonable to expect that transforming the noun embedding according to a matrix corresponding to the adjective and vice versa, with a final transformation on the concatenation of the two resulatant tensors, would yield even better results than the feed-forward approach. For simplicity and to ensure sufficient data was passed in, the embeddings of each category were clustered and each cluster mapped to a transformation matrix. The memory cost of training a separate matrix for each word in the known vocabulary was also untenable, with the raw data (not including overhead) on the order of a terabyte.
+The output layer uses an approximation of the logistic (sigmoid) function to end up with a value between zero and one, which can be interpreted as a probability. In order to avoid continued adjustment of good weights, which would lead to them growing out of control, the output of the sigmoid is rounded if the input is beyond a certain cutoff. A good value for the cutoff turned out to be $ \pm 8 $.
 
-This architecture takes considerably longer to train, roughly ten times as long on the same hardware as the feed-forward model. Some of this is due to the cost of looking up each input's cluster, since this can not be done in an efficient way without dereferencing the tensor, which is not possible due to the way Tensorflow sessions are managed in hybrid Rust/Python projects. This may actually be a case where a performance gain might be possible by switching entirely to Python due to the incompleteness of the Tensorflow Rust API.
+Training is done using an Adam optimizer with a learning rate of 0.0025 in batches of 10000 samples. As it turns out, a learning rate over 0.005 is too high for the model to converge at all, and performance starts to pick up around 0.003. In order to maintain balanced batches, the entire test set is shuffled at the beginning of each epoch. The inputs to the model are the concatenations of the noun and adjective embeddings, i.e. a rank one tensor with 600 elements.
+
+The training outputs are simply booleans \textemdash one for positive and zero for negative samples. An output of over 0.5 is considered a prediction that the pair is valid, and an output of 0.5 or lower the converse. Because an output of 0.5 means that the model is entirely unsure of how to categorize the pair, and because there are a roughly equal number of false positives and false negatives ignoring this case, we decided it would be more expedient in practical application to just guess than to create a third, uncertain category.
+
+\subsection{FullLex adaptation}
+Because of the success of the FullLex (citation) architecture in composition, it was reasonable to expect that transforming the noun embedding according to a matrix corresponding to the specific adjective and vice versa, with a final transformation on the concatenation of the two resulatant tensors, would yield even better results than the feed-forward approach. For simplicity and to ensure sufficient data was passed in, the embeddings of each category were clustered and each cluster mapped to a transformation matrix. The memory cost of training a separate matrix for each word in the known vocabulary was also untenable, with the raw data (not including overhead) on the order of a terabyte.
+
+This approach uses the same batch size and learning rate as the feed-forward model, but was also tried with more dropout, as this is an important component of the similar transformation selection model. However, even retention as low as 10\% did not help the transformation matrices generalize. We train 100 such matrices for each the nouns and the adjectives, as this has been shown to be more than sufficient differentiation for this type of approach. Using fewer matrices and more data points per matrix does not improve performance.
+
+This architecture takes considerably longer to train, roughly ten times as long on the same hardware as the feed-forward model. Some of this is due to the cost of looking up each input's cluster, since this can not be done in an efficient way without dereferencing the tensor, which is not possible due to the way Tensorflow sessions are managed in hybrid Rust/Python projects. This may actually be a case where a performance gain could be achieved by switching entirely to Python due to the incompleteness of the Tensorflow Rust API and the cost of the only simple way to do this operation.
+
+One could also do the clustering in Rust, but in order to stay within the constraints of this thesis and not break compatibility with the other models, this will be left as a possible future development. However, it would not be a useful improvement, as shown later in this thesis.
+
+\subsection{Transformation selection}
+A similar approach to FullLex, transformation selection (de Kok, Dima), has been shown to be even more effective at composition. For this reason, an adaptation of transformation selection might be expected to outperform the adaptation of FullLex. If more accurate compositions can be predicted with this method, and still assuming that this implies it can model the arguably simpler interaction of whether they combine in the first place.
+
+For this experiment, the hyperparameters follow the optima outlined in the paper introducing the method. The transformation tensors are each 80x300x300 (separate for nouns and adjectives), and dropout with only 10\% retention is used. This was applied first to random elements but then to entire matrices within the transformation tensors, but performance was the same either way. The provided model is still set up to use dropout on entire matrices.
+
+Because of the rank of the transformation output and the need to reduce it to a single number, two outer transformations are applied. This has the added effect of essentially generating an embedding and then applying logistic regression to the output, i.e. applying logistic regression to determine the validity of a generated embedding.
 
 
 \section{Metrics}
 
-As mentioned earlier, the backpropagation uses log loss because of how well it works with percentages. Of course, the percentages are just confidences and not the final output. Because it ends up being binary classification, it makes sense to use the accuracy as a metric of performance, keeping an eye on the ratio of false positives to false negatives. The specific cases with which it struggles can also provide insight, of course, but with 300-dimensional embeddings and the nature of neural nets the reasons for misclassification will only be conjecture.
+As mentioned earlier, the backpropagation uses log loss because of how well it works with percentages. Of course, the percentages are just confidences and not the final output per se. Because the task is binary classification, it makes sense to use the accuracy as a metric of performance, keeping an eye on the ratio of false positives to false negatives. The specific cases with which it struggles can also provide insight, of course, but with 300-dimensional embeddings and the nature of neural nets the reasons for misclassification will only be conjecture.
 
 Furthermore, because all the training and validation data is automatically annotated, there are some errors that propagate into the classifier. The rate of things that are incorrectly tagged as nouns or adjectives is higher in the misclassified output than in the input, which bodes well for testing on gold standard data. Because one application for this project is as a step in making parse decisions, there is a bit of a feedback loop here. In order to make sure that it will work correctly and has not been trained too much on the errors, the model also needs to be evaluated on a hand-written list of noun-adjective pairs, both valid and invalid.
 
 
 \section{Results}
+
+The most directly relevant measure of importance is, of course, accuracy. More specifically, depending on the task at hand, a low rate of false positives or false negatives might be more desirable, so these are provided as well, though one should note that for the sake of this thesis the models were made to err on the side of caution; absolutely uncertain cases are marked as incompatible. Rather than implement a cutoff for confidence to make a decision at all, we simply document the confidence with all the misclassified samples. This is broken down in Table \ref{accuracy}.
+
+\begin{table}[]
+	\centering
+	\begin{tabular}{l|lll|lll}
+		                         & \multicolumn{3}{c|}{validation} & \multicolumn{3}{c}{test} \\
+		                         & acc      & fp       & fn        & acc     & fp     & fn    \\ \hline
+		logistic regression      & 62.1\%   & 16.5\%   & 21.5\%    &         &        &       \\
+		feed-forward neural net  & 92       &          &           &         &        &       \\
+		FullLex                  & 64.4     & 15.7     & 19.9      &         &        &       \\
+		transformation selection & 60.5     & 22.2     & 17.3      &         &        &      
+	\end{tabular}
+	\caption{accuracy and error types on validation and test data}
+	\label{accuracy}
+\end{table}
+
+It is immediately apparent that the feed-forward neural network is far and away the most accurate approach.
+
+One interesting difference between the transformation selection and the other approaches is that it has a substantially higher rate of false positives than false negatives, despite ties going to the negatives as with the other models. This effect is hard to explain, but may be an effect of the final layer's function: because it is designed to implicitly train an embedding generator and then evaluate the output for validity, it could be that the final layer, simply by the nature of how embeddings really are distributed within the space, tends to believe they are valid. If one considers the way that embeddings are trained, it makes sense that an embedding model will make relatively full use of the space available. This means that there will likely be few pockets that are semantically invalid areas, and this could extend to generated embeddings as well. Thus, the best guess would often be in favor of the embedding being valid, but in our case half of them are not.
+
+One should also consider how severe the misclassifications are, and, being used as the loss function during training for exactly this reason, the [truncated] logarithmic loss is a good indicator of this. Of course, it still counts correct predictions which are insufficiently confident, but the nature of this function is that it penalizes severely wrong predictions far more heavily. The average loss for each approach is shown in Table \ref{loss}.
+
+\begin{table}[]
+	\centering
+	\begin{tabular}{l|l|l}
+		                         & val. loss & test loss \\ \hline
+		logistic regression      & 0.6352    &           \\
+		feed-forward neural net  &           &           \\
+		FullLex                  & 0.6214    &           \\
+		transformation selection & 0.6416    &          
+	\end{tabular}
+	\caption{truncated (for inputs outside of $[-8, 8]$) logarithmic loss}
+	\label{loss}
+\end{table}
+
+The results here are in line with what we saw in the accuracy rankings, with the values fairly clearly linked to the number of misclassified samples. This does not mean, however, that this data gives no additional information: It shows that none of the four models misclassifies with vastly more confidence than the others, or at least not on average.
+
+
+\section{Evaluation}
+
+
+\section{Conclusion}
+
+
+\section{Bibliography}
+
+
+\section{Appendix}
+
+\subsection{Data}
+
+\subsection{Code}
 
 
 \end{document}
