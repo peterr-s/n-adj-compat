@@ -11,6 +11,7 @@ simd = "0.2"
 itertools = "0.7.8"
 bloom = "0.3.2"
 serde_json = "1.0"
+console = "0.6.1"
 
 [[bin]]
 name = "compat"
@@ -23,4 +24,8 @@ path = "src/prep/main.rs"
 [[bin]]
 name = "embed"
 path = "src/embed/main.rs"
+
+[[bin]]
+name = "test-gen"
+path = "src/test-gen/main.rs"
 
