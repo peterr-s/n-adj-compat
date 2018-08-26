@@ -1,6 +1,10 @@
 use std::collections::HashSet;
+use std::collections::VecDeque;
+
 use std::fs::{File, OpenOptions};
+
 use std::io::{BufRead, BufReader, BufWriter, Lines, Write};
+
 use std::iter::FromIterator;
 
 extern crate rand;
@@ -51,6 +55,8 @@ fn main() -> () {
     // process input until user types EOF/Ctrl+D
     let mut noun: String;
     let mut adj: String;
+    let undo_buf_len = 10;
+    let mut queue: VecDeque<(String, bool)> = VecDeque::with_capacity(undo_buf_len + 1);
     loop {
         // generate pair
         noun = noun_vec[n_range.ind_sample(&mut rng)].clone();
@@ -60,10 +66,22 @@ fn main() -> () {
         while match Term::stdout().read_key() {
             Ok(Key::Char('h')) => {
                 // accept
-                match pos_gs.write_all(format!("{} {}\n", noun, adj).as_bytes()) {
-                    Ok(..) => println!("Accepted"),
-                    Err(..) => eprintln!("Could not write to positive sample file"),
-                };
+                println!("Accepted");
+
+                queue.push_back((format!("{} {}\n", noun, adj), true));
+                if queue.len() > undo_buf_len{
+                    pos_gs.write_all(queue.pop_front().unwrap().0.as_bytes()).expect("Could not write to positive sample file");
+                }
+                false
+            }
+            Ok(Key::Char('l')) => {
+                // reject
+                println!("Rejected");
+
+                queue.push_back((format!("{} {}\n", noun, adj), false));
+                if queue.len() > undo_buf_len {
+                    neg_gs.write_all(queue.pop_front().unwrap().0.as_bytes()).expect("Could not write to negative sample file");
+                }
                 false
             }
             Ok(Key::Char('j')) => {
@@ -71,37 +89,66 @@ fn main() -> () {
                 if adjs.remove(&adj) {
                     println!("Removed {}", adj);
                 }
+
                 adj_vec = Vec::from_iter(adjs.iter().map(|e| e.clone()));
                 a_range = Range::new(0usize, adj_vec.len());
-                false
+
+                // pick new adjective and retry
+                adj = adj_vec[a_range.ind_sample(&mut rng)].clone();
+                print!("{} {}\n", adj, noun);
+                true
             }
             Ok(Key::Char('k')) => {
                 // drop noun
                 if nouns.remove(&noun) {
                     println!("Removed {}", noun);
                 }
+                
                 noun_vec = Vec::from_iter(nouns.iter().map(|e| e.clone()));
                 n_range = Range::new(0usize, noun_vec.len());
-                false
+                
+                // pick new noun and retry
+                noun = noun_vec[n_range.ind_sample(&mut rng)].clone();
+                print!("{} {}\n", adj, noun);
+                true
             }
-            Ok(Key::Char('l')) => {
-                // reject
-                match neg_gs.write_all(format!("{} {}\n", noun, adj).as_bytes()) {
-                    Ok(..) => println!("Rejected"),
-                    Err(..) => eprintln!("Could not write to negative sample file"),
+            Ok(Key::Char('u')) => {
+                // undo
+                match queue.pop_back() {
+                    Some(e) => println!("Undid {:?}", e),
+                    None => println!("Nothing to undo"),
                 }
+
+                // retry current pair
+                true
+            }
+            Ok(Key::Char('s')) => {
+                // skip
+                println!("Skipped");
+                
                 false
             }
             Ok(Key::Char('\u{4}')) => {
-                // Ctrl+D will be marked as unknown
+                // clear queues and exit
+                let mut iter = queue.iter();
+                while let Some(e) = iter.next() {
+                    if e.1 {
+                        pos_gs.write_all(e.0.as_bytes()).expect("Could not write to positive sample file");
+                    } else {
+                        neg_gs.write_all(e.0.as_bytes()).expect("Could not write to negative sample file");
+                    }
+                }
+
                 return
             }
             Ok(k) => {
                 eprintln!("Invalid input ({:?}); try again", k);
+                
                 true
             }
             Err(..) => {
                 eprintln!("Console error");
+                
                 return
             }
         } {
