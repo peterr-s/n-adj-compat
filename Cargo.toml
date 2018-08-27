@@ -29,3 +29,7 @@ path = "src/embed/main.rs"
 name = "test-gen"
 path = "src/test-gen/main.rs"
 
+[[bin]]
+name = "test"
+path = "src/test/main.rs"
+

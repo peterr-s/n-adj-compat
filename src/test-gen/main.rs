@@ -11,7 +11,7 @@ extern crate rand;
 use rand::distributions::{IndependentSample, Range};
 
 extern crate console;
-use console::{Term, Key};
+use console::{Key, Term};
 
 fn main() -> () {
     // get all nouns and adjectives
@@ -69,8 +69,10 @@ fn main() -> () {
                 println!("Accepted");
 
                 queue.push_back((format!("{} {}\n", noun, adj), true));
-                if queue.len() > undo_buf_len{
-                    pos_gs.write_all(queue.pop_front().unwrap().0.as_bytes()).expect("Could not write to positive sample file");
+                if queue.len() > undo_buf_len {
+                    pos_gs
+                        .write_all(queue.pop_front().unwrap().0.as_bytes())
+                        .expect("Could not write to positive sample file");
                 }
                 false
             }
@@ -80,7 +82,9 @@ fn main() -> () {
 
                 queue.push_back((format!("{} {}\n", noun, adj), false));
                 if queue.len() > undo_buf_len {
-                    neg_gs.write_all(queue.pop_front().unwrap().0.as_bytes()).expect("Could not write to negative sample file");
+                    neg_gs
+                        .write_all(queue.pop_front().unwrap().0.as_bytes())
+                        .expect("Could not write to negative sample file");
                 }
                 false
             }
@@ -103,10 +107,10 @@ fn main() -> () {
                 if nouns.remove(&noun) {
                     println!("Removed {}", noun);
                 }
-                
+
                 noun_vec = Vec::from_iter(nouns.iter().map(|e| e.clone()));
                 n_range = Range::new(0usize, noun_vec.len());
-                
+
                 // pick new noun and retry
                 noun = noun_vec[n_range.ind_sample(&mut rng)].clone();
                 print!("{} {}\n", adj, noun);
@@ -125,7 +129,7 @@ fn main() -> () {
             Ok(Key::Char('s')) => {
                 // skip
                 println!("Skipped");
-                
+
                 false
             }
             Ok(Key::Char('\u{4}')) => {
@@ -133,26 +137,29 @@ fn main() -> () {
                 let mut iter = queue.iter();
                 while let Some(e) = iter.next() {
                     if e.1 {
-                        pos_gs.write_all(e.0.as_bytes()).expect("Could not write to positive sample file");
+                        pos_gs
+                            .write_all(e.0.as_bytes())
+                            .expect("Could not write to positive sample file");
                     } else {
-                        neg_gs.write_all(e.0.as_bytes()).expect("Could not write to negative sample file");
+                        neg_gs
+                            .write_all(e.0.as_bytes())
+                            .expect("Could not write to negative sample file");
                     }
                 }
 
-                return
+                return;
             }
             Ok(k) => {
                 eprintln!("Invalid input ({:?}); try again", k);
-                
+
                 true
             }
             Err(..) => {
                 eprintln!("Console error");
-                
-                return
+
+                return;
             }
-        } {
-        }
+        } {}
 
         println!("");
     }
