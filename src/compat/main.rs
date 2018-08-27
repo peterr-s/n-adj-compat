@@ -220,8 +220,7 @@ fn main() {
                 b"noun, adjective, noun mat, adj mat, confidence, validity\n"
             } else {
                 b"noun, adjective, confidence, validity\n"
-            })
-            .expect("Could not write misclassification headers");
+            }).expect("Could not write misclassification headers");
 
         // train each epoch on complete set
         for epoch in 0..epoch_ct {
@@ -348,8 +347,7 @@ fn main() {
                         }
 
                         transposed.as_mut_slice()
-                    })
-                        .unwrap();
+                    }).unwrap();
                     // train output is binary compatibility, run output is confidences as float
                     y_batch = Tensor::new(&[1u64, batch_size as u64])
                         .with_values({
@@ -359,8 +357,7 @@ fn main() {
                                 .map(|e| if e.valid { 1.0f32 } else { 0.0f32 })
                                 .collect();
                             vec.as_mut_slice()
-                        })
-                        .unwrap();
+                        }).unwrap();
                 }
 
                 // train step (3/4 of all batches)
