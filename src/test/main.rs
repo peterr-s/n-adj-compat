@@ -184,7 +184,7 @@ fn main() {
 
     // for saving misclassified samples
     let mut misclassified_file: BufWriter<File> = BufWriter::new(
-        File::create("./misclassified").expect("Could not create misclassification file"),
+        File::create("./misclassified_gs").expect("Could not create misclassification file"),
     );
     misclassified_file
         .write_all(if is_mat {

@@ -28,7 +28,7 @@ fn main() -> () {
         }
         // shuffle negative and positive samples
         let mut cat: Child = Command::new("cat")
-            .args(&["pos", "neg", "misclassified"])
+            .args(&["pos", "neg", "mc_testgen"])
             .stdout(Stdio::piped())
             .spawn()
             .expect("Could not concatenate negative sample files");

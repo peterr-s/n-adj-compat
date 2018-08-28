@@ -15,7 +15,8 @@ neg_shuffled
 all_shuffled
 *.swp
 model.ckpt.*
-misclassified
+misclassified*
+mc_testgen
 nohup.*
 run
 debug
