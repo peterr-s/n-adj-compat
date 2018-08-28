@@ -7,9 +7,12 @@ nmi
 text
 pairs
 pos
+pos_gs
 pos_shuffled
 neg
+neg_gs
 neg_shuffled
+all_shuffled
 *.swp
 model.ckpt.*
 misclassified
