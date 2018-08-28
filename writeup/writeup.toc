@@ -1,22 +1,51 @@
+\boolfalse {citerequest}\boolfalse {citetracker}\boolfalse {pagetracker}\boolfalse {backtracker}\relax 
+\defcounter {refsection}{0}\relax 
 \select@language {english}
+\defcounter {refsection}{0}\relax 
 \contentsline {section}{\numberline {1}Introduction}{3}
+\defcounter {refsection}{0}\relax 
 \contentsline {section}{\numberline {2}Related Work}{4}
+\defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {2.1}Statistical approaches to compatibility}{4}
+\defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {2.2}Embedding composition}{5}
+\defcounter {refsection}{0}\relax 
 \contentsline {section}{\numberline {3}Preprocessing}{6}
+\defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {3.1}Corpus}{6}
+\defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {3.2}Embeddings}{6}
+\defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {3.3}Negative sampling}{7}
-\contentsline {section}{\numberline {4}Models}{7}
-\contentsline {subsection}{\numberline {4.1}Logistic Regression}{7}
-\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{7}
-\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{8}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {3.4}Test data}{7}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {4}Models}{8}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.1}Logistic Regression}{8}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{8}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{9}
+\defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {4.4}Transformation selection}{9}
-\contentsline {section}{\numberline {5}Metrics}{9}
-\contentsline {section}{\numberline {6}Results}{10}
-\contentsline {section}{\numberline {7}Evaluation}{11}
-\contentsline {section}{\numberline {8}Conclusion}{11}
-\contentsline {section}{\numberline {9}Bibliography}{11}
-\contentsline {section}{\numberline {10}Appendix}{11}
-\contentsline {subsection}{\numberline {10.1}Data}{11}
-\contentsline {subsection}{\numberline {10.2}Code}{11}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5}Results}{10}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {6}Evaluation}{12}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {6.1}Data}{12}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {6.2}Models}{14}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {7}Conclusion}{14}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {8}Bibliography}{14}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{References}{14}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {9}Appendix}{14}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {9.1}Data}{14}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {9.2}Code}{14}
