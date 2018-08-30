@@ -56,7 +56,7 @@
       <file>blx-natbib.def</file>
       <file>numeric.bbx</file>
       <file>standard.bbx</file>
-      <file>authoryear-comp.cbx</file>
+      <file>authoryear.cbx</file>
       <file>biblatex.cfg</file>
       <file>english.lbx</file>
     </requires>

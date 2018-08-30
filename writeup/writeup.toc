@@ -2,50 +2,50 @@
 \defcounter {refsection}{0}\relax 
 \select@language {english}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {1}Introduction}{3}
+\contentsline {section}{\numberline {1}Introduction}{3}{section.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {2}Related Work}{4}
+\contentsline {section}{\numberline {2}Related Work}{4}{section.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {2.1}Statistical approaches to compatibility}{4}
+\contentsline {subsection}{\numberline {2.1}Statistical approaches to compatibility}{4}{subsection.2.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {2.2}Embedding composition}{5}
+\contentsline {subsection}{\numberline {2.2}Embedding composition}{6}{subsection.2.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {3}Preprocessing}{6}
+\contentsline {section}{\numberline {3}Preprocessing}{6}{section.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.1}Corpus}{6}
+\contentsline {subsection}{\numberline {3.1}Corpus}{6}{subsection.3.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.2}Embeddings}{6}
+\contentsline {subsection}{\numberline {3.2}Embeddings}{7}{subsection.3.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.3}Negative sampling}{7}
+\contentsline {subsection}{\numberline {3.3}Negative sampling}{7}{subsection.3.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.4}Test data}{7}
+\contentsline {subsection}{\numberline {3.4}Test data}{8}{subsection.3.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {4}Models}{8}
+\contentsline {section}{\numberline {4}Models}{8}{section.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.1}Logistic Regression}{8}
+\contentsline {subsection}{\numberline {4.1}Logistic Regression}{8}{subsection.4.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{8}
+\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{8}{subsection.4.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{9}
+\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{9}{subsection.4.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.4}Transformation selection}{9}
+\contentsline {subsection}{\numberline {4.4}Transformation selection}{10}{subsection.4.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {5}Results}{10}
+\contentsline {section}{\numberline {5}Results}{10}{section.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {6}Evaluation}{12}
+\contentsline {section}{\numberline {6}Evaluation}{13}{section.6}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.1}Data}{12}
+\contentsline {subsection}{\numberline {6.1}Data}{13}{subsection.6.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.2}Models}{14}
+\contentsline {subsection}{\numberline {6.2}Models}{15}{subsection.6.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {7}Conclusion}{14}
+\contentsline {section}{\numberline {7}Conclusion}{15}{section.7}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {8}Bibliography}{14}
+\contentsline {section}{\numberline {8}Bibliography}{17}{section.8}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{References}{14}
+\contentsline {section}{References}{17}{section.8}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {9}Appendix}{14}
+\contentsline {section}{\numberline {9}Appendix}{18}{section.9}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {9.1}Data}{14}
+\contentsline {subsection}{\numberline {9.1}Data}{18}{subsection.9.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {9.2}Code}{14}
+\contentsline {subsection}{\numberline {9.2}Code}{18}{subsection.9.2}

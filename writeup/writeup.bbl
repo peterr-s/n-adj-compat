@@ -1,0 +1,400 @@
+% $ biblatex auxiliary file $
+% $ biblatex version 2.6 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\entry{FastText}{article}{}
+  \name{author}{4}{}{%
+    {{}%
+     {Bojanowski}{B.}%
+     {Piotr}{P.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Grave}{G.}%
+     {Edouard}{E.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Joulin}{J.}%
+     {Armand}{A.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Mikolov}{M.}%
+     {Tomas}{T.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{BPGEJAMT1}
+  \strng{fullhash}{BPGEJAMT1}
+  \field{labelyear}{2017}
+  \field{sortinit}{B}
+  \field{issn}{2307-387X}
+  \field{pages}{135\bibrangedash 146}
+  \field{title}{Enriching Word Vectors with Subword Information}
+  \field{volume}{5}
+  \field{journaltitle}{Transactions of the Association for Computational
+  Linguistics}
+  \field{year}{2017}
+\endentry
+
+\entry{BoumaNPMI}{article}{}
+  \name{author}{1}{}{%
+    {{}%
+     {Bouma}{B.}%
+     {Gerlof}{G.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{BG1}
+  \strng{fullhash}{BG1}
+  \field{labelyear}{2009}
+  \field{sortinit}{B}
+  \field{pages}{31\bibrangedash 40}
+  \field{title}{Normalized (pointwise) mutual information in collocation
+  extraction}
+  \field{journaltitle}{Proceedings of GSCL}
+  \field{year}{2009}
+\endentry
+
+\entry{deKokParsing}{inproceedings}{}
+  \name{author}{2}{}{%
+    {{}%
+     {{de Kok}}{d.}%
+     {Dani{\"e}l}{D.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Hinrichs}{H.}%
+     {Erhard}{E.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{dDHE1}
+  \strng{fullhash}{dDHE1}
+  \field{labelyear}{2016}
+  \field{sortinit}{D}
+  \field{booktitle}{Proceedings of the 54th Annual Meeting of the Association
+  for Computational Linguistics (Volume 2: Short Papers)}
+  \field{pages}{1\bibrangedash 7}
+  \field{title}{Transition-based dependency parsing with topological fields}
+  \field{volume}{2}
+  \field{year}{2016}
+\endentry
+
+\entry{HindleRooth}{article}{}
+  \name{author}{2}{}{%
+    {{}%
+     {Hindle}{H.}%
+     {Donald}{D.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Rooth}{R.}%
+     {Mats}{M.}%
+     {}{}%
+     {}{}}%
+  }
+  \list{publisher}{1}{%
+    {MIT Press}%
+  }
+  \strng{namehash}{HDRM1}
+  \strng{fullhash}{HDRM1}
+  \field{labelyear}{1993}
+  \field{sortinit}{H}
+  \field{issn}{0891-2017}
+  \field{number}{1}
+  \field{pages}{103\bibrangedash 120}
+  \field{title}{Structural Ambiguity and Lexical Relations}
+  \verb{url}
+  \verb http://dl.acm.org/citation.cfm?id=972450.972456
+  \endverb
+  \field{volume}{19}
+  \list{location}{1}{%
+    {Cambridge, MA, USA}%
+  }
+  \field{journaltitle}{Comput. Linguist.}
+  \field{month}{03}
+  \field{year}{1993}
+\endentry
+
+\entry{Lemming}{inproceedings}{}
+  \name{author}{4}{}{%
+    {{}%
+     {M{\"u}ller}{M.}%
+     {Thomas}{T.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Cotterell}{C.}%
+     {Ryan}{R.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Fraser}{F.}%
+     {Alexander}{A.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Sch{\"u}tze}{S.}%
+     {Hinrich}{H.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{MTCRFASH1}
+  \strng{fullhash}{MTCRFASH1}
+  \field{labelyear}{2015}
+  \field{sortinit}{M}
+  \field{booktitle}{Proceedings of the 2015 Conference on Empirical Methods in
+  Natural Language Processing}
+  \field{pages}{2268\bibrangedash 2274}
+  \field{title}{Joint lemmatization and morphological tagging with lemming}
+  \field{year}{2015}
+\endentry
+
+\entry{PenningtonSocherManningGlove}{inproceedings}{}
+  \name{author}{3}{}{%
+    {{}%
+     {Pennington}{P.}%
+     {Jeffrey}{J.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Socher}{S.}%
+     {Richard}{R.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Manning}{M.}%
+     {Christopher}{C.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{PJSRMC1}
+  \strng{fullhash}{PJSRMC1}
+  \field{labelyear}{2014}
+  \field{sortinit}{P}
+  \field{booktitle}{Proceedings of the 2014 conference on empirical methods in
+  natural language processing (EMNLP)}
+  \field{pages}{1532\bibrangedash 1543}
+  \field{title}{Glove: Global vectors for word representation}
+  \field{year}{2014}
+\endentry
+
+\entry{PlankVanNoord}{inproceedings}{}
+  \name{author}{2}{}{%
+    {{}%
+     {Plank}{P.}%
+     {Barbara}{B.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {{van Noord}}{v.}%
+     {Gertjan}{G.}%
+     {}{}%
+     {}{}}%
+  }
+  \list{organization}{1}{%
+    {Association for Computational Linguistics}%
+  }
+  \strng{namehash}{PBvG1}
+  \strng{fullhash}{PBvG1}
+  \field{labelyear}{2011}
+  \field{sortinit}{P}
+  \field{booktitle}{Proceedings of the 49th Annual Meeting of the Association
+  for Computational Linguistics: Human Language Technologies-Volume 1}
+  \field{pages}{1566\bibrangedash 1576}
+  \field{title}{Effective measures of domain similarity for parsing}
+  \field{year}{2011}
+\endentry
+
+\entry{SchnabelEmbeddings}{inproceedings}{}
+  \name{author}{4}{}{%
+    {{}%
+     {Schnabel}{S.}%
+     {Tobias}{T.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Labutov}{L.}%
+     {Igor}{I.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Mimno}{M.}%
+     {David}{D.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Joachims}{J.}%
+     {Thorsten}{T.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{STLIMDJT1}
+  \strng{fullhash}{STLIMDJT1}
+  \field{labelyear}{2015}
+  \field{sortinit}{S}
+  \field{booktitle}{Proceedings of the 2015 Conference on Empirical Methods in
+  Natural Language Processing}
+  \field{pages}{298\bibrangedash 307}
+  \field{title}{Evaluation methods for unsupervised word embeddings}
+  \field{year}{2015}
+\endentry
+
+\entry{SocherFullLex}{inproceedings}{}
+  \name{author}{4}{}{%
+    {{}%
+     {Socher}{S.}%
+     {Richard}{R.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Huval}{H.}%
+     {Brody}{B.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Manning}{M.}%
+     {Christopher~D}{C.~D.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Ng}{N.}%
+     {Andrew~Y}{A.~Y.}%
+     {}{}%
+     {}{}}%
+  }
+  \list{organization}{1}{%
+    {Association for Computational Linguistics}%
+  }
+  \strng{namehash}{SRHBMCDNAY1}
+  \strng{fullhash}{SRHBMCDNAY1}
+  \field{labelyear}{2012}
+  \field{sortinit}{S}
+  \field{booktitle}{Proceedings of the 2012 joint conference on empirical
+  methods in natural language processing and computational natural language
+  learning}
+  \field{pages}{1201\bibrangedash 1211}
+  \field{title}{Semantic compositionality through recursive matrix-vector
+  spaces}
+  \field{year}{2012}
+\endentry
+
+\entry{vanNoord}{inproceedings}{}
+  \name{author}{1}{}{%
+    {{}%
+     {{van Noord}}{v.}%
+     {Gertjan}{G.}%
+     {}{}%
+     {}{}}%
+  }
+  \list{publisher}{1}{%
+    {Association for Computational Linguistics}%
+  }
+  \strng{namehash}{vG1}
+  \strng{fullhash}{vG1}
+  \field{labelyear}{2007}
+  \field{sortinit}{V}
+  \field{booktitle}{Proceedings of the 10th International Conference on Parsing
+  Technologies}
+  \field{isbn}{978-1-932432-90-9}
+  \field{pages}{1\bibrangedash 10}
+  \field{series}{IWPT '07}
+  \field{title}{Using Self-trained Bilexical Preferences to Improve
+  Disambiguation Accuracy}
+  \verb{url}
+  \verb http://dl.acm.org/citation.cfm?id=1621410.1621411
+  \endverb
+  \list{location}{1}{%
+    {Prague, Czech REpublic}%
+  }
+  \field{year}{2007}
+  \warn{\item Can't use 'location' + 'address'}
+\endentry
+
+\entry{Volk}{inproceedings}{}
+  \name{author}{1}{}{%
+    {{}%
+     {Volk}{V.}%
+     {Martin}{M.}%
+     {}{}%
+     {}{}}%
+  }
+  \list{publisher}{1}{%
+    {Association for Computational Linguistics}%
+  }
+  \strng{namehash}{VM1}
+  \strng{fullhash}{VM1}
+  \field{labelyear}{2002}
+  \field{sortinit}{V}
+  \field{booktitle}{Proceedings of the 19th International Conference on
+  Computational Linguistics - Volume 1}
+  \verb{doi}
+  \verb 10.3115/1072228.1072232
+  \endverb
+  \field{pages}{1\bibrangedash 7}
+  \field{series}{COLING '02}
+  \field{title}{Combining Unsupervised and Supervised Methods for PP Attachment
+  Disambiguation}
+  \verb{url}
+  \verb https://doi.org/10.3115/1072228.1072232
+  \endverb
+  \list{location}{1}{%
+    {Taipei, Taiwan}%
+  }
+  \field{year}{2002}
+  \warn{\item Can't use 'location' + 'address'}
+\endentry
+
+\entry{YangSuTan}{inproceedings}{}
+  \name{author}{3}{}{%
+    {{}%
+     {Yang}{Y.}%
+     {Xiaofeng}{X.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Su}{S.}%
+     {Jian}{J.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Tan}{T.}%
+     {Chew~Lim}{C.~L.}%
+     {}{}%
+     {}{}}%
+  }
+  \list{organization}{1}{%
+    {Association for Computational Linguistics}%
+  }
+  \strng{namehash}{YXSJTCL1}
+  \strng{fullhash}{YXSJTCL1}
+  \field{labelyear}{2005}
+  \field{sortinit}{Y}
+  \field{booktitle}{Proceedings of the 43rd Annual Meeting on Association for
+  Computational Linguistics}
+  \field{pages}{165\bibrangedash 172}
+  \field{title}{Improving pronoun resolution using statistics-based semantic
+  compatibility information}
+  \field{year}{2005}
+\endentry
+
+\lossort
+\endlossort
+
+\endinput
