@@ -96,6 +96,38 @@
   \field{year}{2016}
 \endentry
 
+\entry{TSelect}{article}{}
+  \name{author}{4}{}{%
+    {{}%
+     {Dima}{D.}%
+     {Corina}{C.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {{de Kok}}{d.}%
+     {Dani{\"e}l}{D.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Witte}{W.}%
+     {Neele}{N.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Hinrichs}{H.}%
+     {Erhard}{E.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{DCdDWNHE1}
+  \strng{fullhash}{DCdDWNHE1}
+  \field{labelyear}{2018}
+  \field{sortinit}{D}
+  \field{title}{No word is an island — a transformation weighting model for
+  semantic composition}
+  \field{year}{2018}
+\endentry
+
 \entry{HindleRooth}{article}{}
   \name{author}{2}{}{%
     {{}%

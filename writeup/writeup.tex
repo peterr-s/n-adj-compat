@@ -1,4 +1,4 @@
-\documentclass[a4paper, 11pt]{scrartcl}
+\documentclass[a4paper, 12pt]{scrartcl}
 %\documentclass[a4paper, 11pt]{article}
 %\usepackage[margin=2.7cm]{geometry}     % sets the borders to 2.7cm each
 \usepackage[english]{babel}             % defines language for spacing
@@ -6,7 +6,7 @@
 \usepackage[T1]{fontenc}                % sets font to T1 and allows umlaute
 \usepackage{lmodern}                    % improves font display in PDFs
 \usepackage{microtype}                  % improves spacing when using lmodern
-
+\usepackage{graphicx}
 \usepackage[
 	citestyle   = authoryear,           % use author-year citation
 %	bibstyle    = JME,                  % use JME-style; change to JME_sentencecase to have all titles converted to lowercase letters
@@ -21,7 +21,6 @@
 %	url         = false,                % show no urls
 	backend     = bibtex                % use bibtex as backend
 	]{biblatex}
-
 \usepackage{hyperref}
 
 \addglobalbib{bibliography}             % defines the name of the .bib file
@@ -30,15 +29,91 @@
 
 \begin{document}
 
-\title{Semantic Compatibility of Nouns and Adjectives on the Basis of Word Embeddings}
-\author{Peter Schoener}
-\date{\today}
-\maketitle
-\clearpage
+\begin{titlepage}
+
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}} % Defines a new command for the horizontal lines, change thickness here
+
+\center % Center everything on the page
+ 
+%----------------------------------------------------------------------------------------
+%	HEADING SECTIONS
+%----------------------------------------------------------------------------------------
+
+\textsc{\LARGE Universität Tübingen}\\ % Name of your uni
+\textsc{\Large - Philosophische Fakultät -}\\[1.5cm]
+
+
+%----------------------------------------------------------------------------------------
+%	TITLE SECTION
+%----------------------------------------------------------------------------------------
+
+\HRule \\[0.4cm]
+{ \huge \bfseries Embedding-based approaches to prediction of semantic compatibility}\\[0.4cm] % Title of your document
+\HRule \\[1.0cm]
+\textsc{\Large Submitted to the Department of General and Computational Linguistics }\\
+\textsc{\Large In Partial Fulfillment of the  }\\
+\textsc{\Large Requirements for the }
+\textsc{\Large Degree of Bachelor of Arts  }\\[0.5cm]
+%----------------------------------------------------------------------------------------
+%	AUTHOR SECTION
+%----------------------------------------------------------------------------------------
+
+\begin{minipage}{0.4\textwidth}
+\begin{flushleft} \large
+\emph{Author:}\\
+Peter \textsc{Schoener} % Your name
+\end{flushleft}
+\end{minipage}
+~
+\begin{minipage}{0.4\textwidth}
+\begin{flushright} \large
+\emph{Advisor:} \\
+Dr. Dani\"el \textsc{de Kok} % Supervisor's Name
+\end{flushright}
+\end{minipage}\\[2cm]
+
+% If you don't want a supervisor, uncomment the two lines below and remove the section above
+%\Large \emph{Author:}\\
+%John \textsc{Smith}\\[3cm] % Your name
+
+%----------------------------------------------------------------------------------------
+%	DATE SECTION
+%----------------------------------------------------------------------------------------
+
+{\large \today}\\[1cm] % Date, change the \today to a set date if you want to be precise
+
+%----------------------------------------------------------------------------------------
+%	LOGO SECTION
+%----------------------------------------------------------------------------------------
+
+\includegraphics[width=0.3\textwidth]{logo-uni-tuebingen.png}\\[1cm] % Include a department/university logo - this will require the graphicx package
+ 
+%----------------------------------------------------------------------------------------
+
+\vfill % Fill the rest of the page with whitespace
+
+\end{titlepage}
+\pagenumbering{roman}
+\section*{Plagiarism Statement} 
+This thesis was written by me and in my own words, except for quotations from published and unpublished sources which are clearly indicated and acknowledged as such. I am conscious that the incorporation of material from other works or a paraphrase of such material without acknowledgement will be treated as plagiarism, subject to the custom and usage of the subject, according to the University Regulations on Conduct of Examinations.\\[5cm]
+%\includegraphics[scale=0.1]{sig.jpg} \\
+\noindent\rule{4cm}{0.4pt}\\
+Signature
+\newpage
 
 \tableofcontents
-\clearpage
+\newpage
+
+%\title{Embedding-based approaches to prediction of semantic compatibility}
+%\author{Peter Schoener}
+%\date{\today}
+%\maketitle
+%\clearpage
+
+%\tableofcontents
+%\clearpage
 %\mainmatter                             % set beginning of page numbering
+\pagenumbering{arabic}
 
 \section{Introduction}
 
@@ -102,7 +177,7 @@ Given that this is the case, a metric which ranks pairs by co-occurence should b
 
 \subsection{Embedding composition}
 
-As far as embedding-based approaches, the only existing work is in composition itself. Two notably successful architectures for compostion are FullLex (\cite{SocherFullLex}) and transformation selection (de Kok, Dima). Both of these involve applying a transformation to each constituent and then another to the concatenation of the outputs, the difference being in whether one or all of the possible transformations is applied.
+As far as embedding-based approaches, the only existing work is in composition itself. Two notably successful architectures for compostion are FullLex (\cite{SocherFullLex}) and transformation selection (\cite{TSelect}). Both of these involve applying a transformation to each constituent and then another to the concatenation of the outputs, the difference being in whether one or all of the possible transformations is applied.
 
 Assuming one can accurately predict what the composition should be if the constituents are compatible, it stands to reason that a valid angle might be checking the resultant embedding for validity. The ideal method for the latter operation is less well-explored. However, since the goal here is to take a neural approach, it may be possible to train adaptations of the aforementioned composition models to simply output a binary classification directly or with one extra layer.
 
@@ -166,7 +241,7 @@ This architecture takes considerably longer to train, roughly ten times as long 
 One could also do the clustering in Rust, but in order to stay within the constraints of this thesis and not break compatibility with the other models, this will be left as a possible future development. However, it would not be a useful improvement, as shown later in this thesis.
 
 \subsection{Transformation selection}
-A similar approach to FullLex, transformation selection (de Kok, Dima), has been proposed. Rather than applying only the words' transformation matrices to each other, a large number of general matrices in the form of a rank 3 tensor are applied to each constituent and whichever of these happen to interact strongly with the embeddings then also have the largest impact on the output, and a nonlinearity, in our case the ReLU, is thrown into the mix, that is, $$ y_{pred} = W_o \times ReLU([W_U \times u + b_U; W_V \times v + b_U]) + b_o $$ This has proven even more effective at composition than FullLex. For this reason, an adaptation of transformation selection might be expected to outperform the adaptation of FullLex. If more accurate compositions can be predicted with this method, and still assuming that this implies it can model the arguably simpler interaction of whether they combine in the first place.
+A similar approach to FullLex, transformation selection, has been proposed in \cite{TSelect}. Rather than applying only the words' transformation matrices to each other, a large number of general matrices in the form of a rank 3 tensor are applied to each constituent and whichever of these happen to interact strongly with the embeddings then also have the largest impact on the output, and a nonlinearity, in our case the ReLU, is thrown into the mix, that is, $$ y_{pred} = W_o \times ReLU([W_U \times u + b_U; W_V \times v + b_U]) + b_o $$ This has proven even more effective at composition than FullLex. For this reason, an adaptation of transformation selection might be expected to outperform the adaptation of FullLex. If more accurate compositions can be predicted with this method, and still assuming that this implies it can model the arguably simpler interaction of whether they combine in the first place.
 
 For this experiment, the hyperparameters follow the optima outlined in the paper introducing the method. The transformation tensors are each 80x300x300 (separate for nouns and adjectives), and dropout with only 10\% retention is used. This was applied first to random elements but then to entire matrices within the transformation tensors, but performance was the same either way. The provided model is still set up to use dropout on entire matrices.
 
@@ -308,6 +383,9 @@ The composition-based approaches are also worth investigating further; they have
 
 \section{Conclusion}
 The goal of this thesis was to put forth a proof-of-concept model that used a neural approach to determine semantic compatibility. Indeed, it is possible to predict, with a high degree of accuracy, the compatibility of nouns with adjectives. However, this could not yet be transferred to a more varied test set. The negative sampling is clearly not aggressive enough, but simply amplifying the current method would be too indiscriminate. This means that a more precise method for negative sampling is needed, or a large dataset including human judgements of a large number of incompatible pairs.
+
+However, given the validation accuracy, these methods, especially the multilayer perceptron, seemed very successful at first. It is possible that, given more consistent training and test data, these methods would perform quite well.
+
 
 \clearpage
 \section{Bibliography}
