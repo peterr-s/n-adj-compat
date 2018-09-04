@@ -1,0 +1,5 @@
+#!/bin/sh
+
+rm nohup.*
+nohup time -o time cargo run --release --bin compat 2> nohup.err & tail -f nohup.out --pid=$!
+

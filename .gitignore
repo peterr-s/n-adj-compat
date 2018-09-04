@@ -3,7 +3,6 @@ corpus/
 _junk_data/
 embeddings
 temp-embeddings
-nmi
 text
 pairs
 pos
@@ -18,7 +17,6 @@ model.ckpt.*
 misclassified*
 mc_testgen
 nohup.*
-run
 debug
 view
 n
