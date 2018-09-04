@@ -157,7 +157,8 @@ fn main() {
 
                         // clear sentence (except root)
                         sentence.resize(1, root_entry.clone()); // should never need to actually fill anything
-                    } else if line.as_bytes()[0] != b'#' { // skip comment lines
+                    } else if line.as_bytes()[0] != b'#' {
+                        // skip comment lines
                         // otherwise, extract the important CoNLL fields
                         let fields: Vec<String> = line
                             .split_whitespace()

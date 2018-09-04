@@ -1,8 +1,8 @@
 use std::collections::{HashSet, VecDeque};
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Read, BufWriter, Lines, Write};
-use std::process::{Child, Command, Stdio};
+use std::io::{BufRead, BufReader, BufWriter, Lines, Read, Write};
 use std::iter::FromIterator;
+use std::process::{Child, Command, Stdio};
 
 extern crate rand;
 use rand::distributions::{IndependentSample, Range};
@@ -99,12 +99,14 @@ fn main() -> () {
                 noun = noun_vec[n_range.ind_sample(&mut rng)].clone();
                 adj = adj_vec[a_range.ind_sample(&mut rng)].clone();
             }
-            _ => match file_iter.next() { // this will only ever be 1, but the compiler doesn't know and will throw an error if the default case isn't covered
+            _ => match file_iter.next() {
+                // this will only ever be 1, but the compiler doesn't know and will throw an error if the default case isn't covered
                 Some(t) => {
                     noun = t.0.clone();
                     adj = t.1.clone();
                 }
-                None => { // TODO make this fall back more elegantly
+                None => {
+                    // TODO make this fall back more elegantly
                     noun = noun_vec[n_range.ind_sample(&mut rng)].clone();
                     adj = adj_vec[a_range.ind_sample(&mut rng)].clone();
                 }

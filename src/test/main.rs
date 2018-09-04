@@ -172,14 +172,15 @@ fn main() {
 
     // fill vec
     let test_ct: usize = pairs.len();
+    let filler_ct: usize = batch_size - (test_ct % batch_size);
     pairs.append(&mut vec![
         NAdjPair {
             noun: String::new(),
             adj: String::new(),
             valid: false,
-            embedding: vec![0.0f32; 600]
+            embedding: vec![0.0f32; 600],
         };
-        test_ct % batch_size
+        filler_ct
     ]);
 
     // for saving misclassified samples
@@ -191,7 +192,8 @@ fn main() {
             b"noun, adjective, noun mat, adj mat, confidence, validity\n"
         } else {
             b"noun, adjective, confidence, validity\n"
-        }).expect("Could not write misclassification headers");
+        })
+        .expect("Could not write misclassification headers");
 
     let x_width: usize = embedding_model.embed_len() * 2;
     let x_size: usize = x_width * batch_size;
@@ -225,7 +227,8 @@ fn main() {
                 }
 
                 transposed.as_mut_slice()
-            }).unwrap();
+            })
+                .unwrap();
             // train output is binary compatibility, run output is confidences as float
             y_batch = Tensor::new(&[1u64, batch_size as u64])
                 .with_values({
@@ -235,26 +238,27 @@ fn main() {
                         .map(|e| if e.valid { 1.0f32 } else { 0.0f32 })
                         .collect();
                     vec.as_mut_slice()
-                }).unwrap();
+                })
+                .unwrap();
         }
 
         // run graph
-        let mut validation_step: StepWithGraph = StepWithGraph::new();
-        validation_step.add_input(&x, 0, &x_batch);
-        validation_step.add_input(&y, 0, &y_batch);
-        let y_pred_idx: OutputToken = validation_step.request_output(&y_pred, 0);
-        let loss_idx: OutputToken = validation_step.request_output(&loss, 0);
-        let n_mat_idx_idx: OutputToken = validation_step.request_output(&n_mat_idx, 0);
-        let a_mat_idx_idx: OutputToken = validation_step.request_output(&a_mat_idx, 0);
+        let mut test_step: StepWithGraph = StepWithGraph::new();
+        test_step.add_input(&x, 0, &x_batch);
+        test_step.add_input(&y, 0, &y_batch);
+        let y_pred_idx: OutputToken = test_step.request_output(&y_pred, 0);
+        let loss_idx: OutputToken = test_step.request_output(&loss, 0);
+        let n_mat_idx_idx: OutputToken = test_step.request_output(&n_mat_idx, 0);
+        let a_mat_idx_idx: OutputToken = test_step.request_output(&a_mat_idx, 0);
 
         session
-            .run(&mut validation_step)
-            .expect("Could not run validation step");
+            .run(&mut test_step)
+            .expect("Could not run test step");
 
-        let y_pred_val: Tensor<f32> = validation_step.take_output(y_pred_idx).unwrap();
-        let loss_val: Tensor<f32> = validation_step.take_output(loss_idx).unwrap();
-        let n_mat_idx_val: Tensor<f32> = validation_step.take_output(n_mat_idx_idx).unwrap();
-        let a_mat_idx_val: Tensor<f32> = validation_step.take_output(a_mat_idx_idx).unwrap();
+        let y_pred_val: Tensor<f32> = test_step.take_output(y_pred_idx).unwrap();
+        let loss_val: Tensor<f32> = test_step.take_output(loss_idx).unwrap();
+        let n_mat_idx_val: Tensor<f32> = test_step.take_output(n_mat_idx_idx).unwrap();
+        let a_mat_idx_val: Tensor<f32> = test_step.take_output(a_mat_idx_idx).unwrap();
 
         // get specific misclassifications and write to file
         let y_vec: Vec<f32> = y_batch.to_vec();
@@ -262,7 +266,7 @@ fn main() {
         let n_mat_idx_vec: Vec<f32> = n_mat_idx_val.to_vec();
         let a_mat_idx_vec: Vec<f32> = a_mat_idx_val.to_vec();
         let pairs: &[NAdjPair] = &pairs;
-        for i in 0..batch_size {
+        for i in 0..(batch_size - filler_ct) {
             let pred_valid: bool = y_pred_vec[i] > 0.5;
             let is_valid: bool = y_vec[i] > 0.5;
             if pred_valid != is_valid {
@@ -304,11 +308,15 @@ fn main() {
     let fp_rate: f32 = (false_pos as f32) / (test_ct as f32);
     let fn_rate: f32 = (false_neg as f32) / (test_ct as f32);
     let accuracy: f32 = 1.0f32 - fp_rate - fn_rate;
-    let loss: f32 =
-        (((test_ct * batch_size) as f32) * total_loss) / ((pairs.len() * pairs.len()) as f32);
+    let loss: f32 = total_loss * (pairs.len() as f32) / (test_ct as f32);
+    //    (((test_ct * batch_size) as f32) * total_loss) / ((pairs.len() * pairs.len()) as f32);
     println!(
         "{:1.3} accuracy ({:1.3} fp, {:1.3} fn), {:1.3} loss",
         accuracy, fp_rate, fn_rate, loss
+    );
+    println!(
+        "{} filler, {} false positives, {} false negatives",
+        filler_ct, false_pos, false_neg
     );
 }
 

@@ -17,8 +17,8 @@ embedding_dim = settings["embedding_dim"]
 sigmoid_cutoff = settings["sigmoid_cutoff"]
 n_mat_ct = settings["n_mat_ct"]
 a_mat_ct = settings["a_mat_ct"]
-n_embed_retention = settings["n_embed_retention"]
-a_embed_retention = settings["a_embed_retention"]
+n_embed_retention = settings["n_mat_retention"]
+a_embed_retention = settings["a_mat_retention"]
 
 # make clusters for matrices
 embedding_model = KeyedVectors.load_word2vec_format(settings["embedding_file"], binary = True)

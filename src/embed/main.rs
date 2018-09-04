@@ -31,7 +31,8 @@ fn main() {
             settings["text_file"]
                 .as_str()
                 .expect("Could not get block text path from settings"),
-        ).status()
+        )
+        .status()
         .expect("Error training embeddings");
 
     // read as text

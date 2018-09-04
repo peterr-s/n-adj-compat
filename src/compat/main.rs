@@ -220,62 +220,63 @@ fn main() {
                 b"noun, adjective, noun mat, adj mat, confidence, validity\n"
             } else {
                 b"noun, adjective, confidence, validity\n"
-            }).expect("Could not write misclassification headers");
+            })
+            .expect("Could not write misclassification headers");
+
+        // shuffle negative and positive samples separately so they are implicitly annotated
+        let mut cat: Child = Command::new("cat")
+            .args(&neg_files)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Could not concatenate negative sample files");
+        let mut shuf: Child = Command::new("shuf")
+            .arg("-o")
+            .arg("./neg_shuffled")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("Could not shuffle negative samples");
+        if let Some(ref mut cat_out) = cat.stdout {
+            if let Some(ref mut shuf_in) = shuf.stdin {
+                // write the whole thing in one go since it shouldn't be more than we can fit in memory
+                let mut buf: Vec<u8> = Vec::with_capacity(buf_size);
+                cat_out
+                    .read_to_end(&mut buf)
+                    .expect("Could not read end of negative cat output");
+                shuf_in
+                    .write_all(&mut buf)
+                    .expect("Could not write end of negative shuf input");
+            }
+        }
+        shuf.wait()
+            .expect("Could not finish shuffling negative samples");
+        cat = Command::new("cat")
+            .args(&pos_files)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Could not concatenate positive sample files");
+        shuf = Command::new("shuf")
+            .arg("-o")
+            .arg("./pos_shuffled")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("Could not shuffle positive samples");
+        if let Some(ref mut cat_out) = cat.stdout {
+            if let Some(ref mut shuf_in) = shuf.stdin {
+                // write the whole thing in one go since it shouldn't be more than we can fit in memory
+                let mut buf: Vec<u8> = Vec::with_capacity(buf_size);
+                cat_out
+                    .read_to_end(&mut buf)
+                    .expect("Could not read end of positive cat output");
+                shuf_in
+                    .write_all(&mut buf)
+                    .expect("Could not write end of positive shuf input");
+            }
+        }
+        shuf.wait()
+            .expect("Could not finish shuffling positive samples");
 
         // train each epoch on complete set
         for epoch in 0..epoch_ct {
-            // shuffle negative and positive samples separately so they are implicitly annotated
-            let mut cat: Child = Command::new("cat")
-                .args(&neg_files)
-                .stdout(Stdio::piped())
-                .spawn()
-                .expect("Could not concatenate negative sample files");
-            let mut shuf: Child = Command::new("shuf")
-                .arg("-o")
-                .arg("./neg_shuffled")
-                .stdin(Stdio::piped())
-                .spawn()
-                .expect("Could not shuffle negative samples");
-            if let Some(ref mut cat_out) = cat.stdout {
-                if let Some(ref mut shuf_in) = shuf.stdin {
-                    // write the whole thing in one go since it shouldn't be more than we can fit in memory
-                    let mut buf: Vec<u8> = Vec::with_capacity(buf_size);
-                    cat_out
-                        .read_to_end(&mut buf)
-                        .expect("Could not read end of negative cat output");
-                    shuf_in
-                        .write_all(&mut buf)
-                        .expect("Could not write end of negative shuf input");
-                }
-            }
-            shuf.wait()
-                .expect("Could not finish shuffling negative samples");
-            cat = Command::new("cat")
-                .args(&pos_files)
-                .stdout(Stdio::piped())
-                .spawn()
-                .expect("Could not concatenate positive sample files");
-            shuf = Command::new("shuf")
-                .arg("-o")
-                .arg("./pos_shuffled")
-                .stdin(Stdio::piped())
-                .spawn()
-                .expect("Could not shuffle positive samples");
-            if let Some(ref mut cat_out) = cat.stdout {
-                if let Some(ref mut shuf_in) = shuf.stdin {
-                    // write the whole thing in one go since it shouldn't be more than we can fit in memory
-                    let mut buf: Vec<u8> = Vec::with_capacity(buf_size);
-                    cat_out
-                        .read_to_end(&mut buf)
-                        .expect("Could not read end of positive cat output");
-                    shuf_in
-                        .write_all(&mut buf)
-                        .expect("Could not write end of positive shuf input");
-                }
-            }
-            shuf.wait()
-                .expect("Could not finish shuffling positive samples");
-
             // create iterators over the shuffled data so it can be read on the fly
             let neg_file: File =
                 File::open("./neg_shuffled").expect("Could not open shuffled negatives");
@@ -347,7 +348,8 @@ fn main() {
                         }
 
                         transposed.as_mut_slice()
-                    }).unwrap();
+                    })
+                        .unwrap();
                     // train output is binary compatibility, run output is confidences as float
                     y_batch = Tensor::new(&[1u64, batch_size as u64])
                         .with_values({
@@ -357,7 +359,8 @@ fn main() {
                                 .map(|e| if e.valid { 1.0f32 } else { 0.0f32 })
                                 .collect();
                             vec.as_mut_slice()
-                        }).unwrap();
+                        })
+                        .unwrap();
                 }
 
                 // train step (3/4 of all batches)
