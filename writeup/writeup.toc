@@ -8,44 +8,44 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {2.1}Statistical approaches to compatibility}{2}{subsection.2.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {2.2}Embedding composition}{4}{subsection.2.2}
+\contentsline {subsection}{\numberline {2.2}Embedding composition}{5}{subsection.2.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {3}Preprocessing}{5}{section.3}
+\contentsline {section}{\numberline {3}Preprocessing}{6}{section.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.1}Corpus}{5}{subsection.3.1}
+\contentsline {subsection}{\numberline {3.1}Corpus}{6}{subsection.3.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.2}Embeddings}{6}{subsection.3.2}
+\contentsline {subsection}{\numberline {3.2}Embeddings}{7}{subsection.3.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.3}Negative sampling}{6}{subsection.3.3}
+\contentsline {subsection}{\numberline {3.3}Negative sampling}{7}{subsection.3.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {3.4}Test data}{7}{subsection.3.4}
+\contentsline {subsection}{\numberline {3.4}Test data}{8}{subsection.3.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {4}Models}{8}{section.4}
+\contentsline {section}{\numberline {4}Models}{9}{section.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.1}Logistic Regression}{8}{subsection.4.1}
+\contentsline {subsection}{\numberline {4.1}Logistic Regression}{9}{subsection.4.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{8}{subsection.4.2}
+\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{9}{subsection.4.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{9}{subsection.4.3}
+\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{10}{subsection.4.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.4}Transformation selection}{10}{subsection.4.4}
+\contentsline {subsection}{\numberline {4.4}Transformation selection}{11}{subsection.4.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {5}Results}{11}{section.5}
+\contentsline {section}{\numberline {5}Results}{12}{section.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {6}Evaluation}{16}{section.6}
+\contentsline {section}{\numberline {6}Evaluation}{18}{section.6}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.1}Data}{16}{subsection.6.1}
+\contentsline {subsection}{\numberline {6.1}Data}{18}{subsection.6.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.2}Models}{17}{subsection.6.2}
+\contentsline {subsection}{\numberline {6.2}Models}{20}{subsection.6.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.3}Results}{18}{subsection.6.3}
+\contentsline {subsection}{\numberline {6.3}Results}{21}{subsection.6.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {7}Conclusion}{19}{section.7}
+\contentsline {section}{\numberline {7}Conclusion}{22}{section.7}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{References}{21}{section*.3}
+\contentsline {section}{References}{24}{section*.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{Appendices}{23}{section*.5}
+\contentsline {section}{Appendices}{26}{section*.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {A}Data}{23}{appendix.A}
+\contentsline {section}{\numberline {A}Data}{26}{appendix.A}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {B}Code}{23}{appendix.B}
+\contentsline {section}{\numberline {B}Code}{26}{appendix.B}
