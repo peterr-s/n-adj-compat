@@ -24,13 +24,13 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {4.1}Logistic Regression}{9}{subsection.4.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{9}{subsection.4.2}
+\contentsline {subsection}{\numberline {4.2}Feed-Forward Neural Network}{10}{subsection.4.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{10}{subsection.4.3}
+\contentsline {subsection}{\numberline {4.3}FullLex adaptation}{11}{subsection.4.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.4}Transformation selection}{11}{subsection.4.4}
+\contentsline {subsection}{\numberline {4.4}Transformation selection}{12}{subsection.4.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {5}Results}{12}{section.5}
+\contentsline {section}{\numberline {5}Results}{13}{section.5}
 \defcounter {refsection}{0}\relax 
 \contentsline {section}{\numberline {6}Evaluation}{18}{section.6}
 \defcounter {refsection}{0}\relax 
@@ -38,14 +38,16 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {6.2}Models}{20}{subsection.6.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.3}Results}{21}{subsection.6.3}
+\contentsline {subsection}{\numberline {6.3}Results}{22}{subsection.6.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {7}Conclusion}{22}{section.7}
+\contentsline {section}{\numberline {7}Conclusion}{23}{section.7}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{References}{24}{section*.3}
+\contentsline {subsection}{\numberline {7.1}Future Work}{23}{subsection.7.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{Appendices}{26}{section*.5}
+\contentsline {section}{References}{25}{section*.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {A}Data}{26}{appendix.A}
+\contentsline {section}{Appendices}{27}{section*.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {B}Code}{26}{appendix.B}
+\contentsline {section}{\numberline {A}Data}{27}{appendix.A}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {B}Code}{27}{appendix.B}

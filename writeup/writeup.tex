@@ -139,13 +139,11 @@ Of course, when training compositional models, the goal is to predict an embeddi
 
 It is therefore important to have an accurate parse so that the resulting composition is useful, or to filter pairs that can not be composed after parsing but before composition. By checking one step earlier and looking at possible transitions or terminals when parsing, it would be possible to get a higher parse accuracy. This would be not only helpful for composition as explained above, but also useful in any other domain requiring accurate parsing.
 
-Existing work on compatibility centers mainly on mutual information and related statistical metrics, which are only applicable to known words. Embeddings, on the other hand, do not require the word to have been seen, or at least not as often. With subword composition methods such as FastText, embeddings can be generated for words not seen at all (\cite{FastText}), and, per the distributional hypothesis on which all embedding methods rest, those seen rarely can be trained if similar words are been seen sufficiently often.
+Existing work on compatibility centers mainly on mutual information and related statistical metrics, which are only applicable to known pairs; without at least one co-occurence these metrics generally become undefined. Embeddings, on the other hand, do not even require the individual word to have been seen, or at least not as often. With subword composition methods such as FastText, embeddings can be generated for words not seen at all (\cite{FastText}), and, per the distributional hypothesis on which all embedding methods rest, those seen rarely can be trained if similar words are been seen sufficiently often.
 
 The goal of this project is therefore to create a model that can determine whether a given embedding pair is semantically compatible. Because it is a first attempt at such an approach, the scope is limited, but given the results the models can hopefully be generalized to arbitrary embedding pairs of known types.
 
-Moving one step further, if composition functions are to be applied multiple times, the compatibility checking will need to work either with the entire phrases, which is untenable for even slightly long sequences, let alone long-distance dependencies, or work on the output of the previous compositions. While compatibility of composed embeddings is beyond the scope of this project, it would be a natural extension.
-
-Because of the ease of extracting noun-adjective pairs and because they tend to be very clearly valid or invalid, the first tests were done on these. However, the approaches that worked for them were later tested on and expanded to verb-direct object pairs.
+Noun-adjective pairs are a natural starting point for a few reasons. They are easy to annotate and extract correctly, giving a clean dataset. They are also generally clearly valid or invalid. Having first explored the problem through this case, we moved to something more directly applicable to a problem that justifies this project: verb-direct object pairs, which would be useful for parsing.
 
 We tested several different models of increasing complexity, the goal being to find the simplest architecture that can achieve high accuracy. First, logistic regression and a feed-forward neural network predicting mutual information, with a cutoff trained to predict validity, which were abandoned in favor of cutting out the restriction of predicting mutual information. That is, again logistic regression and a feed-forward neural network, but without the intermediate layer. Lastly, we adapted two proven composition models, FullLex and transformation selection, to binary classification.
 
@@ -158,10 +156,12 @@ First, however, we investigate existing work on compatibility and the cutting ed
 
 Existing work on compatibility has been primarily on the basis of statistical metrics applied to concrete words. Conditional probability and cooccurrence have been shown to be effective (\cite{Volk}), and the lexical association metric (\cite{HindleRooth}) also works. Pointwise mutual information can likewise be adapted to a highly effective determiner of compatibility (\cite{vanNoord}).
 
-The earliest of these works was that by Hindle and Rooth. This is an elegant solution that captures a few natural intuitions. The absolute value reflects the confidence of the judgement (on a logarithmic scale). All lexical association (their proposed metric, shown in \ref{eq:1}) scores above zero suggest verb attachment, and those below suggest noun attachment.
+The earliest of these works was that by Hindle and Rooth, and deals with prepositional phrase attachment. That is, it looks at ambiguities parallel to that in the famous sentence ``I saw the man with the telescope,'' where ``with'' can attach either to the speaker or the man being seen.
+
+They propose an elegant solution that captures a few natural intuitions. The absolute value reflects the confidence of the judgement (on a logarithmic scale). All lexical association (their proposed metric, shown in \ref{eq:1}) scores above zero suggest verb attachment, and those below suggest noun attachment.
 
 \begin{equation} \label{eq:1}
-	LA(verb, noun, prep) = \log_{2} \left( \frac{f(verb, prep) \cdot f(noun, NULL)}{f(verb) \cdot f(noun, prep)} \right)
+	\mbox{LA}(verb, noun, prep) = \log_{2} \left( \frac{f(verb, prep) \cdot f(noun, NULL)}{f(verb) \cdot f(noun, prep)} \right)
 \end{equation}
 
 However, it has a few pitfalls. Firstly, it is only a comparison metric that can disambiguate between two possible attachments, rather than determining absolute compatibility. Secondly, it requires that the noun-preposition attachment have been seen, as have both candidates in isolation, else the metric becomes undefined. Thirdly, it requires that the verb attachment and the unattached noun have been seen or else the metric assigns a value of complete uncertainty. Lastly, even when these have all been seen, performance remains low when they have not been seen very often, as addressed in the paper.
@@ -169,7 +169,7 @@ However, it has a few pitfalls. Firstly, it is only a comparison metric that can
 The cooccurrence metric, proposed by \cite{Volk} and shown in \ref{eq:2}, has less trouble deciding between the attachment candidates, but is still ultimately a comparison rather than an absolute metric. However, it achieves great accuracy while retaining the speed benefits of a statistical approach. With over 90\% decidability and 80\% accuracy on those decidable cases, it sets as a precedent an accuracy that can be considered a target to maintain for further work, which could expand to cases beyond the ambiguous ones, i.e. to more general attachments and unseen tokens.
 
 \begin{equation} \label{eq:2}
-	cooc(word, prep) = \frac{f(word, prep)}{f(word)}
+	\mbox{cooc}(word, prep) = \frac{f(word, prep)}{f(word)}
 \end{equation}
 
 Another important conclusion, arguably more central to the point of the same paper, is that unsupervised approaches perform equally well as supervised ones for this sort of task. This opens up the possibility of using massive amounts of automatically annotated data rather than a limited manually annotated set. More concretely, this suggests that the type and volume of data needed to effectively train good embeddings and generalizeable transformations for said embeddings is indeed usable for this application.
@@ -177,10 +177,10 @@ Another important conclusion, arguably more central to the point of the same pap
 Similar methods have also been adapted to absolute metrics (\cite{vanNoord}). The association score, shown in \ref{eq:3}, becomes very similar to \textemdash indistinguishable from, if the variables are interpreted as the occurrence of each word in its specific role \textemdash the PMI of the two words, shown in \ref{eq:4}, for which the compatibility is to be determined. While this metric was not tested on its ability to predict whether or not a pair is at all compatible, it does perform very well for disambiguating verb-subject-object attachments.
 
 \begin{equation} \label{eq:3}
-	I(r(w_1, w_2)) = \log\left(\frac{f(r(w_1, w_2))}{f(r(w_1, \_ )) \cdot f(\_ (\_ , w_2))}\right)
+	\mbox{I}(r(w_1, w_2)) = \log\left(\frac{f(r(w_1, w_2))}{f(r(w_1, \_ )) \cdot f(\_ (\_ , w_2))}\right)
 \end{equation}
 \begin{equation} \label{eq:4}
-	PMI(x, y) = \log\left(\frac{f(r(x, y))}{f(r(x, \_ )) \cdot f(r(\_ , y))}\right)
+	\mbox{PMI}(x, y) = \log\left(\frac{f(r(x, y))}{f(r(x, \_ )) \cdot f(r(\_ , y))}\right)
 \end{equation}
 
 Note that this makes it, as tested so far, also a relative metric. However, unlike the others thus far mentioned, it should ideally assign a higher score to any compatible pair than to any incompatible pair, at least for a given verb around which the disambiguation is to be done. This means that at the very least it should be possible to find a threshold above which a noun can be considered compatible with a given verb. Whether this threshold is consistent across verbs is not important to the paper and therefore not investigated, but would be equivalent to the metric being applicable without further modification as a classifier of compatibility or incompatibility.
@@ -193,7 +193,7 @@ Given that this is the case, a metric which ranks pairs by co-occurence should b
 
 \subsection{Embedding composition}
 
-As far as embedding-based approaches, the only existing work is in composition itself. Two notably successful architectures for compostion are FullLex (\cite{SocherFullLex}) and transformation selection (\cite{TSelect}). Both of these involve applying a transformation to each constituent and then another to the concatenation of the outputs, the difference being in whether one or all of the possible transformations is applied.
+As far as embedding-based approaches, the only existing work is in composition itself. Two notably successful architectures for compostion are FullLex (\cite{SocherFullLex}) and transformation selection (\cite{TSelect}). Both of these involve applying a transformation to each constituent and then another to the concatenation of the outputs, the difference being in whether the transformations are trained to be general or word-specific.
 
 Assuming one can accurately predict what the composition should be if the constituents are compatible, it stands to reason that a valid angle might be checking the resultant embedding for validity. The ideal method for the latter operation is less well-explored. However, since the goal here is to take a neural approach, it may be possible to train adaptations of the aforementioned composition models to simply output a binary classification directly or with one extra layer.
 
@@ -208,9 +208,9 @@ Whether any types of embeddings work better than others and for which tasks is s
 
 The corpus used in this experiment is made up of articles published from 1986 to 2009 in the German Tageszeitung (taz) newspaper. It contains 28.9 million sentences and a total of 393.7 million tokens, tagged and parsed automatically. This is done with the Citar tagger, the parser presented in \cite{deKokParsing}, and the Lemming lemmatizer (\cite{Lemming}).
 
-The tagger is about 96\% accurate (\cite{PlankVanNoord}), the parser achieves just over 90\% LAS, and the lemmatizer is about 98\% accurate. It is important that the annotations be not only valid but complete so as to ensure that (1) the embeddings on which the model trains are indeed those of adjectives and nouns, (2) as many positive edge cases as possible are accurately modelled (a) so as to make the most meaningful impact on parsing and (b) so they are not caught by the negative sampling, actively degrading the accuracy of the model.
+The tagger manages 10-fold cross-validated accuracy of 97.41\% on the T\"uBa-D/Z corpus, which is a subset of the taz corpus being used here. The parser achieves just over 90\% LAS, and the lemmatizer is about 98\% accurate. It is important that the annotations be not only valid but complete so as to ensure that (1) the embeddings on which the model trains are indeed those of adjectives and nouns, (2) as many positive edge cases as possible are accurately modelled (a) so as to make the most meaningful impact on parsing and (b) so they are not caught by the negative sampling, actively degrading the accuracy of the model.
 
-In terms of the data relevant to our experiment, there are 26.6 million noun-adjective pairs found in the corpus for which an embedding can be trained for at least one constituent with the 50 occurrence minimum. About 24.6 million of these are actually used in training, that is, both embeddings are present. The number of usable positive samples is the limiting factor in the total quantity of data, since negative samples can be generated ad infinitum but we want to aim for a balanced set. Thus, we end up with 49.2 million training pairs.
+In terms of the data relevant to our experiment, there are 26.6 million noun-adjective pairs found in the corpus for which an embedding can be trained for at least one constituent with the 50 occurrence minimum. About 24.6 million of these are actually used in training, that is, both embeddings are present. The number of usable positive samples is the limiting factor in the total quantity of data, since negative samples can be generated ad infinitum (see \ref{sec:neg-samp}) but we want to aim for a balanced set. Thus, we end up with 49.2 million training pairs.
 
 The verb-noun experiment is done with direct objects, of which there are fewer than adjectives. There are 1.9 million positive samples, of which 1.7 million are used in training. As before, this gives us a total training set size of twice that, i.e. 3.4 million. This data is even less noisy than the adjective-noun pairs, at least in terms of part of speech. Whether the nouns are actually direct objects is hard to tell without references to the original sentences.
 
@@ -223,6 +223,7 @@ The ConLL data is searched for dependencies between nouns of any type and adject
 The way positive samples are generated means that the minimum count for the embedding model has a further consequence beyond ensuring validity of the embeddings: the compatibility models will not attempt to learn based on rare words which might have strange or simply incompletely represented compatibility properties. Because the list is not deduplicated, the models learn primarily from pairs where the compatiblity is well-established, and focus on getting reliable results for more common and therefore more important pairs.
 
 \subsection{Negative sampling}
+\label{sec:neg-samp}
 
 Of course, it does not make sense to train only on positive samples. Negative samples are generated first by random sampling, but then filtered against not only pairs that did occur, but those which are embedding-wise similar. This means that not only found pairs are avoided, but also those which would likely also be possible as per the embeddings.
 
@@ -231,26 +232,32 @@ In order to avoid doing a quadratic number of searches depending on the number o
 Each negative sample is generated and then tested against the Bloom filter, then scrapped and regenerated if it is found. This allows precise control over the number of negative samples. In order to maintain a balanced training set, I fixed this to the number of positive samples.
 
 \subsection{Test data}
+\label{sec:test-data}
 
 Test data is assembled from a few different sources. Some samples are invented, and the rest are drawn from human judgements on random elements from the positive and negative sets, as well as randomly generated samples. Unlike the negative training data, these random samples are not filtered against anything. By relying on human judgement misclassifications can be avoided, i.e. outliers that should not be in the positive set and valid random pairs that should not be in the negative set. Just as importantly, tokens incorrectly tagged as nouns or adjectives can be filtered out; errors when classifying these should not be held against the model since they are not valid inputs in the scope of this task.
 
 Drawing on suggestions from the generated positive and negative sets simply makes it more likely that a definitively positive or negative pair will be shown to the judge. This also does not equate to testing on training data, since the judge is given the chance to change the tag. This chance is amplified by specifically also drawing on the pairs that were misclassified during validation.
 
+The judgements were ultimately all made by one native speaker, but the pairs are, as mentioned, clearly compatible or incompatible. Whether they make pragmatic sense is not considered, so unlike the training data some pairs are included which would rarely occur in real text but which make sense.
+
+In order to ensure that the set remains balanced, the longer of the two pair lists (compatible or incompatible) is truncated. However, it turned out that they were already fairly close in size.
 
 \section{Models}
 
 \subsection{Logistic Regression}
-In order to determine whether it even makes sense to spend time training a slower, more complex, and less transparent architecture, we first tried applying logistic regression to this task. Although slightly less simple to train than linear regression, it is monotonous, so many of the difficulties created by combining nonlinearities are avoided. It also conveniently squeezes outputs into the range $ (0, 1) $, allowing us to interpret them as probabilities. In order to avoid adjusting weights that were already good enough, which could lead to them growing out of control and possibly reducing the accuracy, we used an approximation of the logistic sigmoid that rounds after a certain cutoff. A good value for this turned out to be $ \pm 8 $, i.e.
+In order to determine whether it even makes sense to spend time training a slower, more complex, and less transparent architecture, we first tried applying logistic regression to this task. Although slightly less simple to train than linear regression, it is monotonous, so many of the difficulties created by combining nonlinearities are avoided. It also conveniently squeezes outputs into the range $ (0, 1) $, allowing us to interpret them as probabilities. However, because it is asymptotic, the standard version of the function will lead to weights continuing to be adjusted after they are good enough, eventually making them grow out of control. In order to prevent this, as it could reduce the accuracy, we used an approximation of the logistic sigmoid that rounds after a certain cutoff. A good value for this turned out to be $ \pm 8 $, i.e.
 
 \begin{equation} \label{eq:5}
-	cutoff\_sigmoid(x) =
+	\mbox{cutoff\_sigmoid}(x) =
 	\begin{cases}
 		\dfrac{1}{1 + e^{-x}} & \text{if } |x| \leq 8 \\
-		|x| / x               & \text{otherwise.}
+		0                     & \text{otherwise.}
 	\end{cases}
 \end{equation}
 
 This cutoff value was an educated initial guess, but turned out to be be quite optimal when compared to 2, 4, and 10. This makes a certain amount of sense since the sigmoid function's derivative at this point is vanishingly close to 0; starting around here any adjustment tried by the optimizer would likely be very drastic.
+
+In order to maintain balanced batches, the entire test set is shuffled before training. This is done for the other models as well. The inputs to the regression and feed-forward models are the concatenations of the constituent embeddings, i.e. rank one tensors with 600 elements (that is, the input layer is a $ 600 \times 10000 $ rank two tensor).
 
 All four of the models examined in this paper use logarithmic loss since it works well with estimations of probabilities. It penalizes confident misclassifications heavily and tries to increase confidence of correct predictions. This works nicely in concert with the modified sigmoid; the loss goes to zero at some point, rather than chasing it indefinitely.
 
@@ -263,7 +270,7 @@ The hidden layers use leaky ReLU activation with a slope of 0.2 for values less 
 
 For the output layer, we used the same cutoff sigmoid function as in the regression, and for the same reasons.
 
-Training is done using an Adam optimizer with a learning rate of 0.0025 in batches of 10000 samples. As it turns out, a learning rate over 0.005 is too high for the model to converge at all, and performance starts to pick up around 0.003. In order to maintain balanced batches, the entire test set is shuffled before training. The inputs to the model are the concatenations of the noun and adjective embeddings, i.e. rank one tensors with 600 elements (that is, the input layer is a $ 600 \times 10000 $ rank two tensor).
+Training is done using an Adam optimizer with a learning rate of 0.0025 in batches of 10000 samples. As it turns out, a learning rate over 0.005 is too high for the model to converge at all, and performance starts to pick up around 0.003.
 
 The training outputs are simply booleans \textemdash one for positive and zero for negative samples. An output of over 0.5 is considered a prediction that the pair is valid, and an output of 0.5 or lower the converse. Because an output of 0.5 means that the model is entirely unsure of how to categorize the pair, and because there are a roughly equal number of false positives and false negatives ignoring this case, we decided it would be more expedient in practical application to just guess than to create a third, uncertain category. The goal here is binary classification, and the confidences are mostly made transparent so that the models can be more flexibly integrated into other programs in the future.
 
@@ -278,7 +285,7 @@ would yield even better results than the feed-forward approach. For simplicity a
 
 This approach uses the same batch size and learning rate as the feed-forward model, but was also tried with more dropout, as this is an important component of the similar transformation selection model. However, even retention as low as 10\% did not help the transformation matrices generalize. We train 100 such matrices for each the nouns and the adjectives, as this has been shown to be more than sufficient differentiation for this type of approach. Using fewer matrices and more data points per matrix does not improve performance.
 
-This architecture takes considerably longer to train, roughly ten times as long on the same hardware as the feed-forward model. Some of this is due to the cost of looking up each input's cluster, since this can not be done in an efficient way without dereferencing the tensor, which is not possible due to the way Tensorflow sessions are managed in hybrid Rust/Python projects. This may actually be a case where a performance gain could be achieved by switching entirely to Python due to the incompleteness of the Tensorflow Rust API and the cost of the only simple way to do this operation.
+This architecture takes considerably longer to train, roughly ten times as long on the same hardware as the feed-forward model. Some of this is due to the cost of looking up each input's cluster. The most sane way to do this would involve evaluating the input layer all at once, but due to the way that the values are passed from Rust to Tensorflow, this is not possible. Instead, the lookup is done in a less parallelizeable way. This may actually be a case where a performance gain could be achieved by switching entirely to Python due to the incompleteness of the Tensorflow Rust API and the cost of the only simple way to do this operation.
 
 One could also do the clustering in Rust, but in order to stay within the constraints of this thesis and not break compatibility with the other models, this will be left as a possible future development. However, it might not be the most immediately lucrative improvement, as shown later in this thesis.
 
@@ -298,7 +305,7 @@ Because of the rank of the transformation output and the need to reduce it to a 
 
 \section{Results}
 
-As mentioned earlier, the backpropagation uses logarithmic loss because of how well it works with percentages. Of course, the percentages are just confidences and not the final output per se. However, we leave the confidences slightly transparent by analyzing the validation and test loss so as to better understand how closely the data could be modelled.
+As mentioned earlier, the output layers use the logistic function because of how well it maps to percentages. Of course, the percentages are just confidences and not the final output per se. However, we leave the confidences slightly transparent by analyzing the validation and test loss so as to better understand how closely the data could be modelled.
 
 Because the task is binary classification, it makes sense to use the accuracy as a metric of performance, keeping an eye on the ratio of false positives to false negatives. The specific cases with which it struggles can also provide insight, of course, but with 300-dimensional embeddings and the nature of neural nets the reasons for misclassification will only be conjecture.
 
@@ -316,11 +323,11 @@ The most directly relevant and important measure is, of course, accuracy. Howeve
 		FullLex                  & 79.3     & 9.4      & 11.3      & 52.6    & 8.0    & 39.3   \\
 		transformation selection & 60.5     & 22.2     & 17.3      & 50.2    & 4.6    & 45.2
 	\end{tabular}
-	\caption{accuracy and error types on validation and test data}
+	\caption{accuracy of noun-adjective models on validation and test data}
 	\label{accuracy-an}
 \end{table}
 
-It is immediately apparent that the feed-forward neural network is far and away the most accurate approach. It does not clearly maintain this edge when tested on the human-annotated data, but the others deteriorate to a similar level. Reasons for this are explored later. However, although the test accuracy is not much better than a guess, the model is clearly not just guessing. It generates far more false negatives than false positives, but still some true negatives and false positives. As mentioned, the model achieves a great validation accuracy, which is promising despite the results on the test set.
+It is immediately apparent that the feed-forward neural network is far and away the most accurate approach. It does not clearly maintain this edge when tested on the human-annotated data, but the others deteriorate to a similar level. Reasons for this are explored later, but refer back in particular to \ref{sec:test-data} for the ways in which the training and test data differ. However, although the test accuracy is not much better than a guess, the model is clearly not just guessing. It generates far more false negatives than false positives, but still some true negatives and false positives. As mentioned, the model achieves a great validation accuracy, which is promising despite the results on the test set.
 
 The FullLex approach performs fairly well, though this came as a bit of a surprise; the first few runs of it gave accuracies in the low 60s, but the random initialization seems to have pushed it out of a massive local minimum when the model was retrained from the beginning. A higher learning rate had not helped previously; the adjustments were too large at that point for the model to remain stable within the optimal range. Regardless, this model clearly outperforms logistic regression, as expected due to its basis in previous work. Unfortunately, it suffers just like the feed-forward network when applied to the test data.
 
@@ -341,7 +348,7 @@ This is especially important in the case of validation loss; given the high accu
 		FullLex                  & 0.4600    & 11.910    \\
 		transformation selection & 0.6416    & 13.848
 	\end{tabular}
-	\caption{truncated (for inputs outside of $[-8, 8]$) logarithmic loss}
+	\caption{truncated (for inputs outside of $[-8, 8]$) logarithmic loss of noun-adjective models}
 	\label{loss-an}
 \end{table}
 
@@ -360,7 +367,7 @@ Given the promising results, it made sense to expand the approaches to other typ
 		FullLex                  & 79.1     & 8.7      & 12.2      \\
 		transformation selection & 70.5     & 8.7      & 20.1
 	\end{tabular}
-	\caption{accuracy and error types on validation data}
+	\caption{accuracy of verb-noun models on validation data}
 	\label{accuracy-vn}
 \end{table}
 
@@ -385,13 +392,15 @@ As before, the log loss can be a source of insight into the model; it is provide
 		FullLex                  & 0.4424    \\
 		transformation selection & 0.5685
 	\end{tabular}
-	\caption{truncated logarithmic loss}
+	\caption{truncated logarithmic loss of verb-noun models on validation data}
 	\label{loss-vn}
 \end{table}
 
 The loss values here are in line with the rest of the results so far; the overall ranking in terms of loss is the same as in the last three evaluations and the values themselves are close to what they were for the noun-adjective test. This means that the confidence overall of each of the models stayed roughly the same when transferred to the verb-noun task. The most substantial changes in confidence are those of the logistic regression and transformation selection approaches, which is in line with the idea that these negative samples are farther from the decision boundary; they are more easily and more confidently classified as such.
 
-Another potentially interesting test was applying the verb-noun model to the noun-adjective task. While this would clearly not be as accurate as using the noun-adjective-specific model, it sheds some light on the feasibility of training a single more general model. This test is done on the human-annotated noun-adjective data because it is entirely valid, but also on the noun-adjective training data since it is more in line with what the model was trained on. These results are shown in Tables \ref{accuracy-vn-na} and \ref{loss-vn-na}.
+Another potentially interesting test was applying the verb-noun model to the noun-adjective task. While this would clearly not be as accurate as using the noun-adjective-specific model, it sheds some light on the feasibility of training a single more general model. Of course, creating new models from a concatenation of the two training sets would yield a more accurate indication of how effective a general approach can be, but this test can give indications of whether there are deeper patterns that can carry over from one pair type to another, as opposed to training entirely for some sort of compromise.
+
+This test is done on the human-annotated noun-adjective data because it is entirely valid, but also on the noun-adjective training data since it is more in line with what the model was trained on. These results are shown in Tables \ref{accuracy-vn-na} and \ref{loss-vn-na}.
 
 \begin{table}[]
 	\centering
@@ -402,7 +411,7 @@ Another potentially interesting test was applying the verb-noun model to the nou
 		FullLex                  & 48.5     & 21.5     & 30.0      \\
 		transformation selection & 45.4     & 25.7     & 28.9
 	\end{tabular}
-	\caption{accuracy and error types on other test data}
+	\caption{accuracy of verb-noun models on noun-adjective test data}
 	\label{accuracy-vn-na}
 \end{table}
 
@@ -415,7 +424,7 @@ Another potentially interesting test was applying the verb-noun model to the nou
 		FullLex                  & 15.031    \\
 		transformation selection & 13.765
 	\end{tabular}
-	\caption{truncated logarithmic loss}
+	\caption{truncated logarithmic loss of verb-noun models on noun-adjective test data}
 	\label{loss-vn-na}
 \end{table}
 
@@ -453,7 +462,6 @@ When using only one hidden layer, the feed-forward network still performed fairl
 One should also bear in mind that the composition-based models took substantially longer than even the feed-forward network, with the same number of epochs on the same hardware taking about four times as long for the FullLex-based architecture, and the transformation selection slightly longer than that. However, they did not benefit as strongly from multiple passes over the data, meaning that one or two epochs suffice in order to reach peak accuracy. This roughly evens out, but that may not be true on smaller datasets since the composition-based models have vastly more parameters to train.
 
 \subsection{Results}
-
 It is worth noting that the original experiment was designed to test compatibility of words that can only be attached to each other in one way. The second experiment, meanwhile, focusses on whether a noun can be attached to a verb as a direct object, which is particularly useful for disambiguation in parsing (see again \cite{vanNoord}), but is a somewhat different task since it enforces a specific kind of compatibility.
 
 The results on the two tasks, when compared, give a bit of insight into the effects of the negative sampling approach used here. While this is not the focus of this thesis and could likely be investigated to the point of becoming a thesis of its own, it is an important part of embedding compatibility checking, and so worth having a quick look at. It seems that the negative sampling approach resulted in saner negative samples when done on a smaller set; there is very little noise in terms of incorrectly tagged words in the verb-noun negative set. The adjective-noun set, on the other hand, seems to have had this noise amplified by excluding so much of the embedding space.
@@ -464,6 +472,7 @@ As for the validation accuracy, recall the results of \cite{Volk} mentioned earl
 
 
 \section{Conclusion}
+
 The goal of this thesis was to put forth a proof-of-concept model that used a neural approach to determine semantic compatibility. Indeed, it is possible to predict, with a high degree of accuracy, the compatibility of nouns with adjectives. However, this could not yet be transferred to a more varied test set. The negative sampling is clearly not aggressive enough, but simply amplifying the current method would be too indiscriminate. This means that a more precise method for negative sampling is needed, or a large dataset including human judgements of a large number of incompatible pairs.
 
 However, given the validation accuracy, these methods, especially the multilayer perceptron, seemed very successful at first. It is likely that, given more consistent training and test data, they would perform quite well.
@@ -474,7 +483,10 @@ We also showed that these methods transfer well to other types of pairs, though 
 
 With regards to the negative sampling, it seems, as mentioned above, that too much of the space was excluded by the larger dataset; one possible future improvement could be to adjust the number of neighbors excluded depending on the size of the dataset, which seems like an easy solution under the standard assumption of a Zipfian distribution of word frequencies.
 
+\subsection{Future Work}
 In terms of actual application, the effect of integrating this filter as part of a parser or compositional model has not yet been tested, so we can not yet say whether it is or can be effective enough to improve them. This is left as a topic for later research, but this is research that might already be worth pursuing even without an improved negative sampling system or training set. It could be that by advocating against rare parses the models proposed in this thesis would already create a useful feedback loop.
+
+Moving one step further, if composition functions are to be applied multiple times, the compatibility checking will need to work either with the entire phrases, which is untenable for even slightly long sequences, let alone long-distance dependencies, or work on the output of the previous compositions. While compatibility of composed embeddings is beyond the scope of this project, it would be a natural extension.
 
 All in all, compatibility seems to be a substantially simpler task than composition, with a highly accurate (though of course the accuracy of composition can not be measured in a comparable way) model achievable using a simple feed-forward neural network. This should only improve with access to better data and the development of more valid negative sampling methods, though the method used here seems to be a decent starting point.
 

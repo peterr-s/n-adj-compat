@@ -227,33 +227,6 @@
   \field{year}{2014}
 \endentry
 
-\entry{PlankVanNoord}{inproceedings}{}
-  \name{author}{2}{}{%
-    {{}%
-     {Plank}{P.}%
-     {Barbara}{B.}%
-     {}{}%
-     {}{}}%
-    {{}%
-     {{van Noord}}{v.}%
-     {Gertjan}{G.}%
-     {}{}%
-     {}{}}%
-  }
-  \list{organization}{1}{%
-    {Association for Computational Linguistics}%
-  }
-  \strng{namehash}{PBvG1}
-  \strng{fullhash}{PBvG1}
-  \field{labelyear}{2011}
-  \field{sortinit}{P}
-  \field{booktitle}{Proceedings of the 49th Annual Meeting of the Association
-  for Computational Linguistics: Human Language Technologies-Volume 1}
-  \field{pages}{1566\bibrangedash 1576}
-  \field{title}{Effective measures of domain similarity for parsing}
-  \field{year}{2011}
-\endentry
-
 \entry{SchnabelEmbeddings}{inproceedings}{}
   \name{author}{4}{}{%
     {{}%
